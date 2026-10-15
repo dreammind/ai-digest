@@ -3,6 +3,7 @@
 import logging
 import sqlite3
 from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Unpack
@@ -11,12 +12,12 @@ import pytest
 from anthropic.types import Message, MessageParam
 from pydantic import TypeAdapter
 
-from aidigest.config import Source
+from aidigest.config import Source, load_settings
 from aidigest.db import open_db
 from aidigest.llm import BudgetExceeded, CreateOptions, LlmError, Purpose
 from aidigest.models import FetchedItem
 from aidigest.pipeline.dedupe import register_items
-from aidigest.pipeline.rerank import RankedArticle, RerankParams, rerank
+from aidigest.pipeline.rerank import TOOL_DEFINITION, RankedArticle, RerankParams, rerank
 from aidigest.pipeline.scoring import ScoredArticle
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +38,14 @@ SOURCES: dict[str, Source] = {
 }
 
 
+@dataclass(frozen=True)
+class Call:
+    purpose: Purpose
+    messages: list[MessageParam]
+    max_tokens: int
+    options: CreateOptions
+
+
 class FakeLlm:
     """`LlmClient` の偽物。決まった順に応答を返すか、例外を送出する。"""
 
@@ -44,7 +53,7 @@ class FakeLlm:
 
     def __init__(self, outcomes: Sequence[Message | Exception]) -> None:
         self.outcomes = list(outcomes)
-        self.calls: list[dict[str, object]] = []
+        self.calls: list[Call] = []
 
     def create(
         self,
@@ -54,9 +63,7 @@ class FakeLlm:
         max_tokens: int,
         **options: Unpack[CreateOptions],
     ) -> Message:
-        self.calls.append(
-            {"purpose": purpose, "messages": list(messages), "max_tokens": max_tokens, **options}
-        )
+        self.calls.append(Call(purpose, list(messages), max_tokens, options))
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
@@ -126,10 +133,7 @@ def titles(ranked: Sequence[RankedArticle]) -> list[str]:
 
 
 def user_text(llm: FakeLlm, call: int = 0) -> str:
-    messages = llm.calls[call]["messages"]
-    assert isinstance(messages, list)
-    (first,) = messages
-    assert isinstance(first, dict)
+    (first,) = llm.calls[call].messages
     content = first["content"]
     assert isinstance(content, str)
     return content
@@ -153,17 +157,14 @@ def test_request_contains_top_n_with_settings(conn: sqlite3.Connection) -> None:
     assert "[31]" not in text
     assert "Title 30" not in text
     system_prompt = (PROJECT_ROOT / "src/aidigest/prompts/rerank_system.md").read_text()
-    assert call["system"] == system_prompt
-    tools = call["tools"]
-    assert isinstance(tools, list)
-    (tool,) = tools
-    assert isinstance(tool, dict)
-    assert tool["name"] == "submit_relevance"
-    assert tool["strict"] is True
-    assert call["tool_choice"] == {"type": "auto"}
-    assert call["output_config"] == {"effort": "low"}
-    assert call["max_tokens"] == 4000
-    assert call["purpose"] == "rerank"
+    assert call.options.get("system") == system_prompt
+    assert list(call.options.get("tools", [])) == [TOOL_DEFINITION]
+    assert TOOL_DEFINITION["name"] == "submit_relevance"
+    assert TOOL_DEFINITION.get("strict") is True
+    assert call.options.get("tool_choice") == {"type": "auto"}
+    assert call.options.get("output_config") == {"effort": "low"}
+    assert call.max_tokens == 4000
+    assert call.purpose == "rerank"
 
 
 def test_excerpt_is_cleaned_and_truncated(conn: sqlite3.Connection) -> None:
@@ -171,7 +172,7 @@ def test_excerpt_is_cleaned_and_truncated(conn: sqlite3.Connection) -> None:
     articles = scored(
         conn,
         [3, 2, 1],
-        ["<p>Hello</p>\n\n   world  ", "0123456789ABCDEF", ""],
+        ["<p>Hello</p>\n\n   world  ", "0123456789ABCDEF", ""],  # Hello world は 11 文字
     )
     llm = FakeLlm([valid([0.5] * 3)])
 
@@ -179,12 +180,12 @@ def test_excerpt_is_cleaned_and_truncated(conn: sqlite3.Connection) -> None:
         conn,
         articles,
         llm,
-        RerankParams(top_n=30, excerpt_chars=10, llm_weight=0.5, max_tokens=4000),
+        RerankParams(top_n=30, excerpt_chars=11, llm_weight=0.5, max_tokens=4000),
     )
 
     text = user_text(llm)
     assert "抜粋: Hello world\n" in text
-    assert "抜粋: 0123456789\n" in text
+    assert "抜粋: 0123456789A\n" in text
     assert "抜粋: なし" in text
 
 
@@ -330,3 +331,13 @@ def test_non_positive_local_scores_normalize_to_zero(conn: sqlite3.Connection) -
     ranked = rerank(conn, scored(conn, [0, -1]), None, PARAMS)
 
     assert [r.final_score for r in ranked] == [0.0, 0.0]
+
+
+def test_params_from_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-008-1: 設定値から RerankParams を作る"""
+    monkeypatch.setenv("RERANK_TOP_N", "12")
+    monkeypatch.setenv("RERANK_LLM_WEIGHT", "0.3")
+
+    params = RerankParams.from_settings(load_settings(tmp_path / "no-such.env"))
+
+    assert params == RerankParams(top_n=12, excerpt_chars=200, llm_weight=0.3, max_tokens=4000)

@@ -277,6 +277,7 @@ def test_call_is_made_and_recorded_without_commit(
     response = client.create("summarize", messages=messages, max_tokens=256)
 
     assert response.content[0].type == "text"
+    assert client.model == "claude-haiku-5-5"
     (body,) = api.bodies()
     assert body["model"] == "claude-haiku-5-5"
     assert body["max_tokens"] == 256
