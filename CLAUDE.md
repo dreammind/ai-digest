@@ -57,6 +57,7 @@ logs/           # ログ（Git管理外）
 - テストが失敗したとき、テストを書き換えて通さない。テストが仕様と食い違っている場合のみ、仕様を確認したうえで修正する。
 - 外部通信（フィード取得、Anthropic API、SMTP）はテストで必ずモック/フェイクにし、実ネットワークに出さない。
 - コミットは `test:`（Red）→ `feat:`（Green）→ `refactor:` の順に分ける。
+- Red の `test:` コミットは失敗するテストを含むため、pre-commit を `git commit --no-verify` で飛ばしてよい。**この例外は `test:` コミットだけ**。`feat:` / `refactor:` / その他のコミットでは pre-commit を必ず通す。
 - 各ステップで、いまどの段階（Red / Green / Refactor）かを短く報告する。
 
 ## 開発ルール

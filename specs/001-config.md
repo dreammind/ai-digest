@@ -77,6 +77,7 @@ sources:
 | `MAIL_FROM` / `MAIL_TO` | 文字列 | 任意 | なし |
 | `SOURCES_PATH` | パス | 任意 | `sources.yaml` |
 
+- 値が空の変数（例：`SMTP_HOST=`）は、設定されていないものとして扱う（`.env.example` をそのままコピーしても動くようにするため）。
 - 値が無くても読み込みは失敗させない。無いときにどう動くかは、使う側の機能で決める（SPEC §6 の縮退動作：API キーに不備があってもタイトルのみで配信する）。
 - 環境変数と `.env` の両方に同じ値があれば、環境変数を優先する。
 
@@ -109,6 +110,7 @@ sources:
 - **AC-001-8**: Given `sources.yaml` が存在しない、YAML として不正、またはトップレベルに `sources` のリストが無い / When 読み込む / Then `ConfigError` が送出される
 - **AC-001-9**: Given `.env` に値がある / When `Settings` を作る / Then 値が読み込まれる。同じ変数が環境変数にもあれば、環境変数の値が使われる
 - **AC-001-10**: Given 秘密情報が設定されていない / When `Settings` を作る / Then エラーにならず、該当の項目は「なし」になる
+- **AC-001-17**: Given `.env` に値が空の変数がある（例：`SMTP_HOST=`、`SMTP_PORT=`） / When `Settings` を作る / Then その項目は「なし」（`SOURCES_PATH` は既定値）になり、エラーにならない
 - **AC-001-11**: Given `SMTP_PORT` が整数でない / When `Settings` を作る / Then `ConfigError` が送出され、メッセージに秘密情報の値が含まれない
 - **AC-001-12**: Given `ANTHROPIC_API_KEY` と `SMTP_PASSWORD` が設定されている / When `Settings` を文字列化またはログ出力する / Then 秘密の値が含まれない
 - **AC-001-13**: Given `Settings` の環境変数の一覧 / When `.env.example` と比べる / Then `.env.example` にすべての変数名が載っている
