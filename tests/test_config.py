@@ -29,6 +29,7 @@ ENV_NAMES = [
     "MAIL_FROM",
     "MAIL_TO",
     "SOURCES_PATH",
+    "DB_PATH",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
