@@ -25,6 +25,7 @@ topics.yaml     # テーマ別の重みとキーワード（high / medium / nega
 tests/
 specs/          # 機能単位の詳細仕様（SDD）
 pyproject.toml  # 依存・ツール設定（uv.lock もコミットする）
+data/           # SQLite の DB ファイル（Git管理外）
 output/         # 静的HTML出力（Git管理外）
 logs/           # ログ（Git管理外）
 ```
