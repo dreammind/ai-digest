@@ -5,7 +5,7 @@
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -160,6 +160,7 @@ _ENTRY_ADAPTER = TypeAdapter(dict[str, object])
 
 class _SourcesFile(BaseModel):
     sources: list[object]
+    exclude_keywords: list[NonEmptyStr] = Field(default_factory=list[str])
 
 
 @dataclass(frozen=True)
@@ -175,25 +176,26 @@ class SourceError:
 class LoadedSources:
     sources: list[Source]
     errors: list[SourceError]
+    exclude_keywords: list[str] = field(default_factory=list[str])  # 全ソース共通の除外キーワード
 
 
 def load_sources(path: Path) -> LoadedSources:
     """`sources.yaml` を読み、エントリごとに検証する。不正なエントリだけを除外する。"""
     try:
         data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-        entries = _SourcesFile.model_validate(data).sources
+        parsed = _SourcesFile.model_validate(data)
     except OSError as e:
         raise ConfigError(f"{path} を読み込めません: {e}") from None
     except yaml.YAMLError as e:
         raise ConfigError(f"{path} は YAML として不正です: {e}") from None
     except ValidationError as e:
-        raise ConfigError(f"{path} に sources のリストがありません: {_summarize(e)}") from None
+        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
 
     sources: list[Source] = []
     errors: list[SourceError] = []
     seen_ids: set[str] = set()
 
-    for index, entry in enumerate(entries):
+    for index, entry in enumerate(parsed.sources):
         source_id: str | None = None
         try:
             mapping = _ENTRY_ADAPTER.validate_python(entry)
@@ -217,7 +219,7 @@ def load_sources(path: Path) -> LoadedSources:
             error.source_id,
             error.reason,
         )
-    return LoadedSources(sources, errors)
+    return LoadedSources(sources, errors, list(parsed.exclude_keywords))
 
 
 def _summarize(error: ValidationError) -> str:
