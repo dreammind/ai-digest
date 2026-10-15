@@ -1,6 +1,6 @@
 # 001: 設定の読み込み（sources.yaml / .env）
 
-- 状態: 実装済み
+- 状態: 承認済み（qiita_search の追加）
 - 関連: SPEC.md §5（ソース設定）、§6（予算・単価）、§9（実行環境）、§10（外部境界は pydantic で検証）
 
 ## 目的
@@ -50,15 +50,18 @@ sources:
 | 項目 | 型・制約 | 必須 | 既定値 |
 |---|---|---|---|
 | `id` | 空でない文字列。ファイル内で一意 | 必須 | — |
-| `type` | `rss` / `github_release` / `hn_search` / `arxiv` | 必須 | — |
+| `type` | `rss` / `github_release` / `hn_search` / `arxiv` / `qiita_search` | 必須 | — |
 | `url` | http / https の URL | `rss` のとき必須 | — |
 | `repo` | `owner/name` 形式 | `github_release` のとき必須 | — |
 | `query` | 空でない文字列、または空でない文字列のリスト（1 件以上）。リストの各要素を 1 つの検索語（フレーズ）として扱う。文字列 1 つは、要素 1 つのリストと同じ意味 | `hn_search` / `arxiv` のとき必須 | — |
+| `query`（`qiita_search`） | 空でない文字列。Qiita の検索構文をそのまま書く（例：`tag:ClaudeCode`）。リストにはしない | `qiita_search` のとき必須 | — |
 | `query_operator` | `and`（すべての検索語を含む）/ `or`（いずれかの検索語を含む）。`hn_search` / `arxiv` 以外では指定できない | 任意 | `and` |
 | `category` | `official` / `community` / `paper` / `japanese` | 必須 | — |
 | `priority` | 1〜3 の整数 | 必須 | — |
 | `max_items` | 1 以上の整数 | 必須 | — |
 | `min_score` | 0 以上の整数。`hn_search` 以外では指定できない | 任意 | なし（フィルタしない） |
+| `min_stocks` | 0 以上の整数。`qiita_search` 以外では指定できない | 任意 | `3` |
+| `lookback_days` | 1 以上の整数。`qiita_search` 以外では指定できない | 任意 | `7` |
 | `require_keywords` / `hide_keywords` / `highlight_keywords` | 文字列のリスト | 任意 | 空のリスト |
 | `recheck_changed` | 真偽値 | 任意 | `false` |
 
@@ -105,6 +108,10 @@ sources:
 - **AC-001-14**: Given `query` が文字列 1 つのエントリと、文字列のリストのエントリ / When 読み込む / Then どちらも `query` は文字列のリストになり（文字列 1 つなら要素 1 つ）、`query_operator` を省略していれば `and` になる
 - **AC-001-15**: Given `query_operator` が `and` / `or` 以外、`query` が空のリスト、または空の文字列を含むリスト / When 読み込む / Then そのエントリが除外され、`errors` に残る
 - **AC-001-16**: Given `hn_search` / `arxiv` 以外のエントリに `query_operator` がある / When 読み込む / Then そのエントリが除外され、`errors` に残る
+- **AC-001-18**: Given `query` を書いた `qiita_search` のエントリ / When 読み込む / Then `query` は書いたとおりの文字列で読み込まれ、`min_stocks` と `lookback_days` を省略していれば `3` と `7` になる
+- **AC-001-19**: Given `query` が無い、または空の文字列の `qiita_search` のエントリ / When 読み込む / Then そのエントリが除外され、`errors` に残る
+- **AC-001-20**: Given `min_stocks` が負、または `lookback_days` が 0 の `qiita_search` のエントリ / When 読み込む / Then そのエントリが除外され、`errors` に残る
+- **AC-001-21**: Given `qiita_search` 以外のエントリに `min_stocks` か `lookback_days` がある、または `qiita_search` のエントリに `query_operator` か `min_score` がある / When 読み込む / Then そのエントリが除外され、`errors` に残る
 - **AC-001-6**: Given 同じ `id` のエントリが 2 つある / When 読み込む / Then 最初のエントリだけが残り、2 つ目は `errors` に残る
 - **AC-001-7**: Given 検証に失敗したエントリがある / When 読み込む / Then 除外したエントリの位置と id が ERROR ログに出る
 - **AC-001-8**: Given `sources.yaml` が存在しない、YAML として不正、またはトップレベルに `sources` のリストが無い / When 読み込む / Then `ConfigError` が送出される
@@ -122,6 +129,7 @@ sources:
 - テストでは一時ディレクトリに YAML と `.env` を作る。外部通信はしない
 
 ## 決定事項
+0. **`qiita_search` の追加**（SPEC §5 の変更に合わせる）：`query` は Qiita の検索構文の文字列 1 つ。`min_stocks` と `lookback_days` の既定値は SPEC §5 の初期値（3 と 7 日）とする。
 1. **`category` の値**：SPEC §5 の「区分」の列から `official` / `community` / `paper` / `japanese` とする。メールのセクション（Claude Code / LLM 動向 / その他）への振り分けは 009 で決める。
 2. **`max_items`**：SPEC に既定値が無いので必須とする。
 3. **`query`**：検索語は 1 つでも複数でもよく、複数のときは `query_operator`（`and` / `or`）で組み合わせる。
