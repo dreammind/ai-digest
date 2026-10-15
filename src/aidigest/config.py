@@ -123,8 +123,15 @@ class ArxivSource(_SourceBase):
     query_operator: QueryOperator = "and"
 
 
+class QiitaSearchSource(_SourceBase):
+    type: Literal["qiita_search"]
+    query: NonEmptyStr  # Qiita の検索構文をそのまま書く（例: tag:ClaudeCode）
+    min_stocks: Annotated[int, Field(ge=0)] = 3
+    lookback_days: Annotated[int, Field(ge=1)] = 7
+
+
 Source = Annotated[
-    RssSource | GithubReleaseSource | HnSearchSource | ArxivSource,
+    RssSource | GithubReleaseSource | HnSearchSource | ArxivSource | QiitaSearchSource,
     Field(discriminator="type"),
 ]
 
