@@ -116,3 +116,58 @@ def test_repository_topics_yaml_is_valid() -> None:
     config = load_topics(PROJECT_ROOT / "topics.yaml")
 
     assert [t.id for t in config.topics] == ["claude_code", "llm"]
+
+
+# ------------------------------------------------------------ digest（specs/009）
+
+DIGEST = """\
+digest:
+  size: 6
+  limits: {claude_code: 3, llm: 2, other: 1}
+  update_keywords: [新機能, release]
+"""
+
+
+def test_digest_is_loaded(tmp_path: Path) -> None:
+    """AC-009-1"""
+    digest = load_topics(write(tmp_path, VALID + DIGEST)).digest
+
+    assert digest.size == 6
+    assert digest.limits == {"claude_code": 3, "llm": 2, "other": 1}
+    assert digest.update_keywords == ["新機能", "release"]
+
+
+def test_digest_defaults(tmp_path: Path) -> None:
+    """AC-009-1"""
+    digest = load_topics(write(tmp_path, VALID)).digest
+
+    assert digest.size == 8
+    assert digest.limits == {"claude_code": 4, "llm": 3, "other": 2}
+    assert digest.update_keywords == ["リリース", "新機能", "アップデート", "release", "changelog"]
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("other: 1}", "x: 1}"),
+        ("other: 1}", "other: 1, paper: 1}"),
+        ("size: 6", "size: 0"),
+        ("llm: 2", "llm: 0"),
+        ("[新機能, release]", '[新機能, ""]'),
+    ],
+    ids=["missing-other", "unknown-group", "zero-size", "zero-limit", "empty-keyword"],
+)
+def test_invalid_digest_raises_config_error(tmp_path: Path, old: str, new: str) -> None:
+    """AC-009-2"""
+    assert old in DIGEST
+    with pytest.raises(ConfigError):
+        load_topics(write(tmp_path, VALID + DIGEST.replace(old, new, 1)))
+
+
+def test_repository_topics_yaml_digest() -> None:
+    """AC-009-3"""
+    digest = load_topics(PROJECT_ROOT / "topics.yaml").digest
+
+    assert digest.size == 8
+    assert digest.limits == {"claude_code": 4, "llm": 3, "other": 2}
+    assert digest.update_keywords == ["リリース", "新機能", "アップデート", "release", "changelog"]
