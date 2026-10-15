@@ -1,0 +1,110 @@
+# テーマ別の重みとキーワード、採点のパラメータ（SPEC.md §3・§4、specs/006-local-score.md）
+# 照合は全角・半角と大文字・小文字を同一視した部分一致。
+
+scoring:
+  priority_bonus: {1: 2.0, 2: 1.0, 3: 0.0}
+  high_points: 2.0
+  medium_points: 1.0
+  negative_points: 3.0
+  highlight_points: 1.0
+  content_factor: 0.25
+  max_hits: 3
+  min_score: 1.0
+  similarity_threshold: 0.45
+  ngram: 2
+
+topics:
+  # 優先度「高」: Claude Code の新機能・活用手法・運用ノウハウ
+  - id: claude_code
+    weight: 3.0
+    high:
+      - Claude Code
+      - ClaudeCode
+      - claude-code
+      - CLAUDE.md
+      - サブエージェント
+      - subagent
+      - hooks
+      - フック
+      - スラッシュコマンド
+      - slash command
+      - Agent SDK
+      - Skill
+      - スキル
+      - Mods
+    medium:
+      - MCP
+      - AGENTS.md
+      - worktree
+      - headless
+      - claude -p
+      - 権限
+      - permission
+      - サンドボックス
+      - sandbox
+      - auto mode
+      - コンテキスト
+      - context
+      - ハーネス
+      - harness
+      - コードレビュー
+      - code review
+
+  # 優先度「中」: LLM 全般（新モデル、API、エージェント設計、評価、プロンプト技法）
+  - id: llm
+    weight: 2.0
+    high:
+      - LLM
+      - 大規模言語モデル
+      - Claude
+      - Anthropic
+      - Opus
+      - Sonnet
+      - Haiku
+      - OpenAI
+      - GPT
+      - Gemini
+      - オープンウェイト
+      - open-weight
+      - プロンプト
+      - prompt
+      - RAG
+      - eval
+      - 評価
+      - ベンチマーク
+      - benchmark
+    medium:
+      - AI
+      - AI駆動
+      - エージェント
+      - agent
+      - 生成AI
+      - Codex
+      - Cursor
+      - Copilot
+      - DeepSeek
+      - Qwen
+      - Llama
+      - Mistral
+      - 推論
+      - reasoning
+      - fine-tun
+      - ファインチューニング
+      - トークン
+      - token
+
+# 全テーマ共通の減点（企業のゴシップ、求人、イベント告知など）
+negative:
+  - 逮捕
+  - arrested
+  - 売上
+  - revenue
+  - IPO
+  - 株価
+  - 訴訟
+  - lawsuit
+  - 解雇
+  - 求人
+  - hiring
+  - ハッカソン
+  - hackathon
