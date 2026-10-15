@@ -191,15 +191,7 @@ class LoadedSources:
 
 def load_sources(path: Path) -> LoadedSources:
     """`sources.yaml` を読み、エントリごとに検証する。不正なエントリだけを除外する。"""
-    try:
-        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-        parsed = _SourcesFile.model_validate(data)
-    except OSError as e:
-        raise ConfigError(f"{path} を読み込めません: {e}") from None
-    except yaml.YAMLError as e:
-        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
-    except ValidationError as e:
-        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
+    parsed = _load_yaml_as(path, _SourcesFile)
 
     sources: list[Source] = []
     errors: list[SourceError] = []
@@ -230,6 +222,19 @@ def load_sources(path: Path) -> LoadedSources:
             error.reason,
         )
     return LoadedSources(sources, errors, list(parsed.exclude_keywords))
+
+
+def _load_yaml_as[M: BaseModel](path: Path, model: type[M]) -> M:
+    """YAML ファイルを読んで `model` で検証する。読めない・不正なら `ConfigError` を送出する。"""
+    try:
+        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return model.model_validate(data)
+    except OSError as e:
+        raise ConfigError(f"{path} を読み込めません: {e}") from None
+    except yaml.YAMLError as e:
+        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
+    except ValidationError as e:
+        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
 
 
 def _summarize(error: ValidationError) -> str:
@@ -297,15 +302,7 @@ class TopicsConfig(BaseModel):
 
 def load_topics(path: Path) -> TopicsConfig:
     """`topics.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
-    try:
-        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return TopicsConfig.model_validate(data)
-    except OSError as e:
-        raise ConfigError(f"{path} を読み込めません: {e}") from None
-    except yaml.YAMLError as e:
-        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
-    except ValidationError as e:
-        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
+    return _load_yaml_as(path, TopicsConfig)
 
 
 # ------------------------------------------------------------ pricing.yaml
@@ -341,12 +338,4 @@ class PricingConfig(BaseModel):
 
 def load_pricing(path: Path) -> PricingConfig:
     """`pricing.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
-    try:
-        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return PricingConfig.model_validate(data)
-    except OSError as e:
-        raise ConfigError(f"{path} を読み込めません: {e}") from None
-    except yaml.YAMLError as e:
-        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
-    except ValidationError as e:
-        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
+    return _load_yaml_as(path, PricingConfig)
