@@ -7,11 +7,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-from aidigest.config import HnSearchSource, QiitaSearchSource, RssSource, Source
+from aidigest.config import HnSearchSource, QiitaSearchSource, RssSource, Source, ZennTopicSource
 from aidigest.fetchers.hn import fetch_hn
 from aidigest.fetchers.http import HttpClient
 from aidigest.fetchers.qiita import fetch_qiita
 from aidigest.fetchers.rss import fetch_rss
+from aidigest.fetchers.zenn import fetch_zenn
 from aidigest.models import FetchedItem
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,8 @@ def _fetch_one(
         return fetch_hn(client, source, now, time_window_hours)
     if isinstance(source, QiitaSearchSource):
         return fetch_qiita(client, source, now)
+    if isinstance(source, ZennTopicSource):
+        return fetch_zenn(client, source, now)
     return None
 
 

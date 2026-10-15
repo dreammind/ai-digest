@@ -1,10 +1,12 @@
 # 取得するソース（SPEC.md §5、specs/004-fetchers.md）
 # URL は 2026-10-15 に実際に取得して確認したもの。
 sources:
-  # --- Zenn（RSS）
+  # --- Zenn
+  # claudecode / llm は投稿が多く RSS（20 件）では取りこぼすため、非公式 API の人気順から
+  # 投稿から 7 日以内でいいね 5 以上の記事だけを取る（SPEC.md §5「Zenn の取得方法」）
   - id: zenn-claudecode
-    type: rss
-    url: https://zenn.dev/topics/claudecode/feed
+    type: zenn_topic
+    topic: claudecode
     category: japanese
     priority: 1
     max_items: 20
@@ -15,8 +17,8 @@ sources:
     priority: 1
     max_items: 20
   - id: zenn-llm
-    type: rss
-    url: https://zenn.dev/topics/llm/feed
+    type: zenn_topic
+    topic: llm
     category: japanese
     priority: 2
     max_items: 20
