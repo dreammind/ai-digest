@@ -24,7 +24,7 @@ Claude Code と LLM 全般に関する有用な情報を毎朝1通のダイジ�
 cron (毎朝 6:30 JST)
   → 1. 取得        : RSS/API から新着を収集（ソース単位で例外を隔離し、結果を source_health に記録）
   → 2. 正規化      : URL 正規化、content_hash 計算、既読(DB)との重複排除。取得した全記事は、配信の有無にかかわらずこの時点で既読として記録する
-  → 3. 事前絞込    : 時間窓（36 時間）、除外キーワード、ソース別ルール（require / hide）で除外（LLM を使わない）
+  → 3. 事前絞込    : 時間窓（36 時間。`qiita_search` は対象外）、除外キーワード、ソース別ルール（require / hide）で除外（LLM を使わない）
   → 4. ローカルスコア: テーマ別キーワードの加点・減点とソース優先度で採点し、タイトルが似た重複話題を除く（LLM を使わない）
   → 5. LLM 再ランク: 上位 約 30 件のみ、タイトル+抜粋を 1 回の呼び出しで関連度判定し、ローカルスコアと混ぜる（失敗時はローカルスコア順のまま続行）
   → 6. 枠配分      : セクション別の上限（Claude Code 優先）を守って、最終的な N 件を選ぶ
@@ -36,25 +36,45 @@ cron (毎朝 6:30 JST)
 テーマごとの重みとキーワード（high / medium / negative）は `topics.yaml` で管理する。具体的なスコア式・しきい値は `specs/` の詳細仕様で定める。
 
 ## 5. 情報源（MVP）
-フィード URL は実装時に実在・有効性を確認すること（本表は候補）。
+2026-10-15 に各ソースを実際に取得し、記事の傾向を確認したうえで次のように決めた。
 
-| 区分 | ソース | 取得方法 |
-|---|---|---|
-| 公式 | Anthropic（News / Engineering） | 公式 RSS は未確認。候補は第三者が生成するフィード（下記「Anthropic のフィードについて」） |
-| 公式 | Claude Code リリース（anthropics/claude-code） | GitHub Releases の Atom |
-| 公式 | Claude Code ドキュメントの更新 | 要調査（changelog ページ等） |
-| 公式 | OpenAI / Google DeepMind などの公式ブログ | RSS |
-| コミュニティ | Hacker News | Algolia HN Search API（"Claude Code", "LLM" 等で検索、一定スコア以上） |
-| コミュニティ | Simon Willison's Weblog | Atom |
-| 論文 | arXiv（cs.AI / cs.CL / cs.SE） | arXiv API / RSS（件数が多いのでキーワード絞込を必須とする） |
-| 日本語 | Zenn（claude-code 等のトピック）、Qiita（タグ） | RSS |
+| 区分 | ソース | 取得方法 | priority |
+|---|---|---|---|
+| 日本語 | Zenn（`claudecode` トピック） | RSS（`https://zenn.dev/topics/claudecode/feed`） | 1 |
+| 日本語 | Zenn（`anthropic` トピック） | RSS（`https://zenn.dev/topics/anthropic/feed`） | 1 |
+| 日本語 | Zenn（`llm` トピック） | RSS（`https://zenn.dev/topics/llm/feed`） | 2 |
+| 日本語 | Qiita（`ClaudeCode` タグ） | Qiita API v2 の記事検索（`qiita_search`。下記「Qiita の取得方法」） | 1 |
+| 日本語 | Qiita（`LLM` タグ） | 同上 | 2 |
+| 日本語 | Qiita（`AIエージェント` タグ） | 同上 | 2 |
+| コミュニティ | Hacker News（Claude Code） | Algolia HN Search API。タイトルに "Claude Code"、20 ポイント以上 | 2 |
+| コミュニティ | Hacker News（LLM） | 同上。タイトルに "LLM"、100 ポイント以上 | 2 |
+| コミュニティ | Hacker News（主要モデル） | 同上。タイトルに "Gemini" / "OpenAI" / "Anthropic" / "GPT" のいずれか（OR）、300 ポイント以上。主にモデルの発表を拾う | 2 |
+| コミュニティ | Simon Willison's Weblog | Atom（`https://simonwillison.net/atom/everything/`） | 2 |
+
+- HN は会社名で検索すると企業のゴシップ（逮捕、売上、IPO など）も高いポイントで混ざる。ポイントだけでは区別できないため、`topics.yaml` の減点キーワードで落とす（006）。
+- Qiita の検索は、タグを空白で並べると AND になり、`OR` は他の条件まで外れてしまう。そのため、タグごとに別のソースにする。重複した記事は既読判定（003）で 1 件にまとまる。
+
+MVP で使わないことにしたソースと理由:
+- Claude Code の GitHub Releases：1〜2 日ごとに変更点が数十項目あり、利用者の関心と合わなかった。新機能は Zenn や HN の記事を通して拾う
+- Anthropic の News / Engineering（第三者が生成するフィード）：内容を確認したが、関心と合う記事が少なかった
+- Qiita のタグ RSS：どのタグでも最新 4 件程度しか返らないため、API に置き換えた
+- Zenn の `gemini` / `openai` / `mcp` トピック、Qiita の `Gemini` / `OpenAI` / `MCP` / `生成AI` タグ：ハッカソン作品や関係の薄い連載が多い、件数が少ない、ほかのタグと重なる
+- OpenAI / Google DeepMind などの公式ブログ、arXiv：Phase 2 以降で検討する
+
+### Qiita の取得方法
+- 投稿直後の記事はいいね・ストックが付いておらず、質の判断ができない。そのため、投稿から `lookback_days` 日以内で、ストック数が `min_stocks` 以上になった記事だけを取得する（初期値は 3 と 7 日。10/1〜10/7 の実データで 1 日約 1.4 件）。
+- 基準に届いた日に初めて取得され、既読になる。基準に届かなかった記事は取得しないので、既読にもならない。
+- 記事は数日前に投稿されたものになるため、時間窓（36 時間）は適用しない（取得時に `lookback_days` で絞っている）。
+- いいね数による絞り込みは API の検索で使えなかったため、ストック数を使う。
+- API は認証なしで 1 時間に 60 回まで。1 日 1 回の取得で足りる。
 
 ソースは `sources.yaml` で管理し、追加・削除をコード変更なしで行えるようにする。
 
 ### ソース設定（sources.yaml）の項目
-- `id`、`type`（`rss` / `github_release` / `hn_search` / `arxiv`）、取得先（`url`、`repo`、`query`）、`category`、`priority`（1〜3）
+- `id`、`type`（`rss` / `github_release` / `hn_search` / `arxiv` / `qiita_search`）、取得先（`url`、`repo`、`query`）、`category`、`priority`（1〜3）
 - ソース別ルール: `require_keywords`（いずれかを含む記事だけ通す）、`hide_keywords`（含む記事を除外）、`highlight_keywords`（含む記事を加点）
 - 取得上限: `max_items`（1 回の取得で扱う最大件数）
+- `min_stocks`、`lookback_days`（`qiita_search` のみ。上記「Qiita の取得方法」）
 - `min_score`（Hacker News のみ。一定スコア未満を除外）。候補の確認数は `max_items` の 3 倍までとし、API 呼び出しが増えすぎないようにする
 - `recheck_changed`（true のソースのみ、同じ URL でも `content_hash` が変わったら再収集する。GitHub Releases や changelog 向け。通常のブログ記事は再配信しない）
 
@@ -63,6 +83,7 @@ cron (毎朝 6:30 JST)
 - 取得に失敗したソースは、ダイジェストのフッターに表示する（受け入れ基準「1 ソースの失敗で全体が止まらない」の確認にも使う）。
 
 ### Anthropic のフィードについて
+- 2026-10-15 の確認で、関心と合う記事が少なかったため、MVP では使わない（上記）。以下は調査の記録として残す。
 - 2026-10-07 時点で、第三者のリポジトリ（Olshansk/rss-feeds）が生成する Anthropic News と Engineering のフィードが取得でき（HTTP 200）、直近まで更新されていた。ただしスクレイピング由来のため、Anthropic 側の変更や作者の更新停止で止まる可能性がある。
 - 利用する場合は `source_health` で死活を監視し、更新が一定期間止まったら失敗通知メールの対象にする。
 
@@ -195,8 +216,6 @@ CLAUDE.md の指示だけでは強制力が弱いため、機械的なチェッ�
 
 ## 14. 未決事項
 - 送信に使う SMTP サービス（Gmail / SendGrid / SES）
-- 各ソースの実際のフィード URL と取得可否の確認（特に Claude Code の GitHub Releases の Atom と Simon Willison のブログ。調査時の環境では確認できなかった）
-- Anthropic のフィードに第三者生成のものを使うことを許容するか（§5）
 - `topics.yaml` のキーワード（high / medium / negative）の初期リスト
 - 重複話題判定の方式としきい値（日本語タイトルの文字 n-gram）
 - 予算の初期値（月 $2 / 日 $0.15）と為替レートの設定値、LLM の単価表
