@@ -5,9 +5,7 @@ LLM を使わずに、時間窓・全ソース共通の除外キーワード・�
 """
 
 import logging
-import re
 import sqlite3
-import unicodedata
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
@@ -16,6 +14,7 @@ from typing import Literal
 from aidigest.config import QiitaSearchSource, Source, ZennTopicSource
 from aidigest.models import FetchedItem
 from aidigest.pipeline.dedupe import NewArticle
+from aidigest.pipeline.text import content_excerpt, normalize
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +25,6 @@ REASONS: tuple[Reason, ...] = (
     "hide_keywords",
     "require_keywords",
 )
-
-CONTENT_CHARS = 1000  # 照合に使う本文の先頭の文字数
-_HTML_TAG = re.compile(r"<[^>]+>")
 
 
 def prefilter(
@@ -68,11 +64,6 @@ def prefilter(
     return passed
 
 
-def normalize(text: str) -> str:
-    """全角・半角と大文字・小文字の違いを無くす（NFKC 正規化 + casefold）。"""
-    return unicodedata.normalize("NFKC", text).casefold()
-
-
 def _reason(
     item: FetchedItem, source: Source | None, excluded: Sequence[str], since: datetime
 ) -> Reason | None:
@@ -99,9 +90,8 @@ def _outside_time_window(item: FetchedItem, source: Source | None, since: dateti
 
 
 def _searchable_text(item: FetchedItem) -> str:
-    """タイトルと、HTML タグを除いた本文の先頭 `CONTENT_CHARS` 文字。"""
-    content = _HTML_TAG.sub(" ", item.content)[:CONTENT_CHARS]
-    return normalize(f"{item.title}\n{content}")
+    """タイトルと、HTML タグを除いた本文の先頭部分。"""
+    return normalize(f"{item.title}\n{content_excerpt(item.content)}")
 
 
 def _contains_any(text: str, keywords: Sequence[str]) -> bool:
