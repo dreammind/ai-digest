@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     host_interval_seconds: Annotated[float, Field(ge=0)] = 1.0
     time_window_hours: Annotated[int, Field(gt=0)] = 36
     topics_path: Path = Path("topics.yaml")
+    llm_model: str = "claude-haiku-5-5"
+    llm_timeout_seconds: Annotated[float, Field(gt=0)] = 60
+    llm_max_retries: Annotated[int, Field(ge=0)] = 2
+    budget_daily_usd: Annotated[float, Field(ge=0)] = 0.15
+    budget_monthly_usd: Annotated[float, Field(ge=0)] = 2.0
+    usd_jpy_rate: Annotated[float, Field(gt=0)] = 160
+    pricing_path: Path = Path("pricing.yaml")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
@@ -293,6 +300,50 @@ def load_topics(path: Path) -> TopicsConfig:
     try:
         data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
         return TopicsConfig.model_validate(data)
+    except OSError as e:
+        raise ConfigError(f"{path} を読み込めません: {e}") from None
+    except yaml.YAMLError as e:
+        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
+    except ValidationError as e:
+        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
+
+
+# ------------------------------------------------------------ pricing.yaml
+
+
+class Prices(BaseModel):
+    """USD / 100 万トークンの単価（specs/007-llm-client.md）。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    input: NonNegativeFloat
+    output: NonNegativeFloat
+    cache_write_5m: NonNegativeFloat
+    cache_write_1h: NonNegativeFloat
+    cache_read: NonNegativeFloat
+
+
+class LongContextPrices(Prices):
+    """プロンプトが `threshold` トークンを超えるリクエストの単価。"""
+
+    threshold: Annotated[int, Field(ge=1)]
+
+
+class ModelPricing(Prices):
+    long_context: LongContextPrices | None = None
+
+
+class PricingConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    models: dict[str, ModelPricing]
+
+
+def load_pricing(path: Path) -> PricingConfig:
+    """`pricing.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
+    try:
+        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return PricingConfig.model_validate(data)
     except OSError as e:
         raise ConfigError(f"{path} を読み込めません: {e}") from None
     except yaml.YAMLError as e:
