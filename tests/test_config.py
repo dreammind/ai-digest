@@ -39,6 +39,13 @@ ENV_NAMES = [
     "HOST_INTERVAL_SECONDS",
     "TIME_WINDOW_HOURS",
     "TOPICS_PATH",
+    "LLM_MODEL",
+    "LLM_TIMEOUT_SECONDS",
+    "LLM_MAX_RETRIES",
+    "BUDGET_DAILY_USD",
+    "BUDGET_MONTHLY_USD",
+    "USD_JPY_RATE",
+    "PRICING_PATH",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -809,6 +816,19 @@ def test_invalid_fetcher_settings_raise_config_error(tmp_path: Path, line: str) 
 def test_topics_path_defaults_to_topics_yaml(tmp_path: Path) -> None:
     """AC-006-3"""
     assert load_settings(tmp_path / "no-such.env").topics_path == Path("topics.yaml")
+
+
+def test_llm_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-007-1"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.llm_model == "claude-haiku-5-5"
+    assert settings.llm_timeout_seconds == 60
+    assert settings.llm_max_retries == 2
+    assert settings.budget_daily_usd == 0.15
+    assert settings.budget_monthly_usd == 2.0
+    assert settings.usd_jpy_rate == 160
+    assert settings.pricing_path == Path("pricing.yaml")
 
 
 def test_env_example_lists_all_settings_variables() -> None:
