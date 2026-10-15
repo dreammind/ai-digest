@@ -1,0 +1,6 @@
+# feedparser は型情報を同梱していないため、このプロジェクトで使う部分だけを宣言する。
+# 戻り値の中身は境界（aidigest/fetchers/rss.py）で検証してから使う。
+
+class FeedParserDict(dict[str, object]): ...
+
+def parse(url_file_stream_or_string: bytes | str) -> FeedParserDict: ...

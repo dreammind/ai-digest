@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     mail_to: str | None = None
     sources_path: Path = Path("sources.yaml")
     db_path: Path = Path("data/aidigest.db")
+    user_agent: str = "aidigest/0.1 (+https://github.com/dreammind/ai-digest)"
+    http_timeout_seconds: Annotated[float, Field(gt=0)] = 20
+    http_retries: Annotated[int, Field(ge=0)] = 2
+    http_backoff_seconds: Annotated[float, Field(ge=0)] = 1.0
+    host_interval_seconds: Annotated[float, Field(ge=0)] = 1.0
+    time_window_hours: Annotated[int, Field(gt=0)] = 36
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:

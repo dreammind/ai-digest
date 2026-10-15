@@ -1,0 +1,74 @@
+# 取得するソース（SPEC.md §5、specs/004-fetchers.md）
+# URL は 2026-10-15 に実際に取得して確認したもの。
+sources:
+  # --- Zenn（RSS）
+  - id: zenn-claudecode
+    type: rss
+    url: https://zenn.dev/topics/claudecode/feed
+    category: japanese
+    priority: 1
+    max_items: 20
+  - id: zenn-anthropic
+    type: rss
+    url: https://zenn.dev/topics/anthropic/feed
+    category: japanese
+    priority: 1
+    max_items: 20
+  - id: zenn-llm
+    type: rss
+    url: https://zenn.dev/topics/llm/feed
+    category: japanese
+    priority: 2
+    max_items: 20
+
+  # --- Qiita（API。投稿から 7 日以内でストック 3 以上の記事だけ）
+  - id: qiita-claudecode
+    type: qiita_search
+    query: "tag:ClaudeCode"
+    category: japanese
+    priority: 1
+    max_items: 20
+  - id: qiita-llm
+    type: qiita_search
+    query: "tag:LLM"
+    category: japanese
+    priority: 2
+    max_items: 20
+  - id: qiita-aiagent
+    type: qiita_search
+    query: "tag:AIエージェント"
+    category: japanese
+    priority: 2
+    max_items: 20
+
+  # --- Hacker News（タイトル検索）
+  - id: hn-claude-code
+    type: hn_search
+    query: Claude Code
+    category: community
+    priority: 2
+    max_items: 20
+    min_score: 20
+  - id: hn-llm
+    type: hn_search
+    query: LLM
+    category: community
+    priority: 2
+    max_items: 20
+    min_score: 100
+  - id: hn-models
+    type: hn_search
+    query: [Gemini, OpenAI, Anthropic, GPT]
+    query_operator: or
+    category: community
+    priority: 2
+    max_items: 20
+    min_score: 300
+
+  # --- ブログ
+  - id: simonw
+    type: rss
+    url: https://simonwillison.net/atom/everything/
+    category: community
+    priority: 2
+    max_items: 30
