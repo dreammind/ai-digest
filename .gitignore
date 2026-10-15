@@ -222,6 +222,7 @@ __marimo__/
 # ai-digest
 output/
 logs/
+data/
 *.db
 *.sqlite3
 .claude/settings.local.json

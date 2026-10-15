@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     mail_from: str | None = None
     mail_to: str | None = None
     sources_path: Path = Path("sources.yaml")
+    db_path: Path = Path("data/aidigest.db")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
