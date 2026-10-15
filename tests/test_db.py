@@ -207,6 +207,14 @@ def test_unopenable_path_raises_db_error(tmp_path: Path) -> None:
         open_db(tmp_path)
 
 
+def test_non_sqlite_file_raises_db_error(db_path: Path) -> None:
+    """AC-002-12: SQLite の DB ではないファイル"""
+    db_path.write_bytes(b"this is not a sqlite database" * 10)
+
+    with pytest.raises(DbError):
+        open_db(db_path)
+
+
 # ------------------------------------------------------------ 初期スキーマ
 
 
