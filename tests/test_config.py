@@ -50,6 +50,8 @@ ENV_NAMES = [
     "RERANK_EXCERPT_CHARS",
     "RERANK_LLM_WEIGHT",
     "RERANK_MAX_TOKENS",
+    "SUMMARY_BODY_CHARS",
+    "SUMMARY_MAX_TOKENS",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
