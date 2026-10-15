@@ -287,6 +287,33 @@ class Topic(BaseModel):
     medium: list[NonEmptyStr] = Field(default_factory=list[str])
 
 
+DIGEST_GROUPS = ("claude_code", "llm", "other")  # セクションのグループ（specs/009）
+
+
+class DigestConfig(BaseModel):
+    """配信する件数とグループごとの上限（specs/009-slot-allocation.md）。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    size: Annotated[int, Field(ge=1)] = 8
+    limits: dict[str, Annotated[int, Field(ge=1)]] = Field(
+        default_factory=lambda: {"claude_code": 4, "llm": 3, "other": 2}
+    )
+    update_keywords: list[NonEmptyStr] = Field(
+        default_factory=lambda: ["リリース", "新機能", "アップデート", "release", "changelog"]
+    )
+
+    @field_validator("limits")
+    @classmethod
+    def _known_groups(cls, value: dict[str, int]) -> dict[str, int]:
+        unknown = set(value) - set(DIGEST_GROUPS)
+        if unknown:
+            raise ValueError(f"未知のグループです: {sorted(unknown)}")
+        if "other" not in value:
+            raise ValueError("other の上限が必要です")
+        return value
+
+
 class TopicsConfig(BaseModel):
     """`topics.yaml` の内容。"""
 
@@ -295,6 +322,7 @@ class TopicsConfig(BaseModel):
     scoring: ScoringParams
     topics: list[Topic]
     negative: list[NonEmptyStr] = Field(default_factory=list[str])
+    digest: DigestConfig = Field(default_factory=DigestConfig)
 
     @model_validator(mode="after")
     def _unique_ids(self) -> Self:

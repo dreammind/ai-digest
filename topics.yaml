@@ -108,3 +108,13 @@ negative:
   - hiring
   - ハッカソン
   - hackathon
+
+# 配信する件数とグループごとの上限（SPEC.md §8、specs/009-slot-allocation.md）
+digest:
+  size: 8
+  limits:
+    claude_code: 4  # 手法と更新情報の合計
+    llm: 3
+    other: 2
+  # Claude Code の記事のうち、タイトルにこれらを含むものは「Claude Code 更新情報」に入れる
+  update_keywords: [リリース, 新機能, アップデート, release, changelog]
