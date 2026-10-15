@@ -150,12 +150,20 @@ def test_digest_defaults(tmp_path: Path) -> None:
     ("old", "new"),
     [
         ("other: 1}", "x: 1}"),
+        ("{claude_code: 3, llm: 2, other: 1}", "{claude_code: 3, llm: 2}"),
         ("other: 1}", "other: 1, paper: 1}"),
         ("size: 6", "size: 0"),
         ("llm: 2", "llm: 0"),
         ("[新機能, release]", '[新機能, ""]'),
     ],
-    ids=["missing-other", "unknown-group", "zero-size", "zero-limit", "empty-keyword"],
+    ids=[
+        "other-renamed",
+        "missing-other",
+        "unknown-group",
+        "zero-size",
+        "zero-limit",
+        "empty-keyword",
+    ],
 )
 def test_invalid_digest_raises_config_error(tmp_path: Path, old: str, new: str) -> None:
     """AC-009-2"""
