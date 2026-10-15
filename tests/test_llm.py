@@ -421,3 +421,9 @@ def test_model_cannot_be_passed(conn: sqlite3.Connection, run_id: int, tmp_path:
             **cast(CreateOptions, {"model": "claude-opus-5-5"}),
         )
     assert api.requests == []
+
+
+def test_invalid_yaml_pricing_raises_config_error(tmp_path: Path) -> None:
+    """AC-007-3: YAML として不正"""
+    with pytest.raises(ConfigError):
+        pricing(tmp_path, "models: [unclosed\n")
