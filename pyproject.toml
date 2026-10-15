@@ -18,3 +18,32 @@ dev = [
     "pytest-cov>=7.1.0",
     "ruff>=0.17.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN", "SIM", "RUF", "PT"]
+# 日本語のコメント・docstring で使う全角記号は紛らわしい文字として扱わない
+allowed-confusables = ["（", "）", "：", "，", "＋", "－", "／"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=aidigest --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["aidigest"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
