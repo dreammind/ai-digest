@@ -22,10 +22,8 @@ def fetch_rss(client: HttpClient, source: RssSource) -> list[FetchedItem]:
     parsed = feedparser.parse(response.content)
     if not parsed.get("version"):
         raise FetchError(f"フィードとして解析できません: {source.url}")
-    try:
-        entries = _ENTRIES.validate_python(parsed.get("entries", []))
-    except ValidationError as e:
-        raise FetchError(f"フィードのエントリを読めません: {source.url}") from e
+    # feedparser の結果が想定外の形なら ValidationError になり、ソースの取得失敗として記録される
+    entries = _ENTRIES.validate_python(parsed.get("entries", []))
 
     items: list[FetchedItem] = []
     for entry in entries[: source.max_items]:
