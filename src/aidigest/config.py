@@ -7,7 +7,7 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 import yaml
 from pydantic import (
@@ -20,6 +20,8 @@ from pydantic import (
     StringConstraints,
     TypeAdapter,
     ValidationError,
+    field_validator,
+    model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -62,6 +64,7 @@ class Settings(BaseSettings):
     http_backoff_seconds: Annotated[float, Field(ge=0)] = 1.0
     host_interval_seconds: Annotated[float, Field(ge=0)] = 1.0
     time_window_hours: Annotated[int, Field(gt=0)] = 36
+    topics_path: Path = Path("topics.yaml")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
@@ -228,3 +231,71 @@ def _summarize(error: ValidationError) -> str:
         f"{'.'.join(str(loc) for loc in detail['loc'])}: {detail['msg']}"
         for detail in error.errors(include_input=False, include_url=False)
     )
+
+
+# ------------------------------------------------------------ topics.yaml
+
+NonNegativeFloat = Annotated[float, Field(ge=0)]
+
+
+class ScoringParams(BaseModel):
+    """採点のパラメータ（specs/006-local-score.md）。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    priority_bonus: dict[int, float]
+    high_points: NonNegativeFloat
+    medium_points: NonNegativeFloat
+    negative_points: NonNegativeFloat
+    highlight_points: NonNegativeFloat
+    content_factor: Annotated[float, Field(ge=0, le=1)]
+    max_hits: Annotated[int, Field(ge=1)]
+    min_score: float
+    similarity_threshold: Annotated[float, Field(gt=0, le=1)]
+    ngram: Annotated[int, Field(ge=1)]
+
+    @field_validator("priority_bonus")
+    @classmethod
+    def _covers_all_priorities(cls, value: dict[int, float]) -> dict[int, float]:
+        if set(value) != {1, 2, 3}:
+            raise ValueError("priority 1・2・3 のすべてに値が必要です")
+        return value
+
+
+class Topic(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: NonEmptyStr
+    weight: Annotated[float, Field(gt=0)]
+    high: list[NonEmptyStr]
+    medium: list[NonEmptyStr] = Field(default_factory=list[str])
+
+
+class TopicsConfig(BaseModel):
+    """`topics.yaml` の内容。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    scoring: ScoringParams
+    topics: list[Topic]
+    negative: list[NonEmptyStr] = Field(default_factory=list[str])
+
+    @model_validator(mode="after")
+    def _unique_ids(self) -> Self:
+        ids = [topic.id for topic in self.topics]
+        if len(ids) != len(set(ids)):
+            raise ValueError(f"テーマの id が重複しています: {ids}")
+        return self
+
+
+def load_topics(path: Path) -> TopicsConfig:
+    """`topics.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
+    try:
+        data: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+        return TopicsConfig.model_validate(data)
+    except OSError as e:
+        raise ConfigError(f"{path} を読み込めません: {e}") from None
+    except yaml.YAMLError as e:
+        raise ConfigError(f"{path} は YAML として不正です: {e}") from None
+    except ValidationError as e:
+        raise ConfigError(f"{path} の形式が不正です: {_summarize(e)}") from None
