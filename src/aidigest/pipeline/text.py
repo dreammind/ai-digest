@@ -12,6 +12,11 @@ def normalize(text: str) -> str:
     return unicodedata.normalize("NFKC", text).casefold()
 
 
+def strip_tags(content: str) -> str:
+    """HTML タグを空白に置き換える。"""
+    return _HTML_TAG.sub(" ", content)
+
+
 def content_excerpt(content: str) -> str:
     """本文から HTML タグを除き、先頭 `CONTENT_CHARS` 文字を返す（正規化はしない）。"""
-    return _HTML_TAG.sub(" ", content)[:CONTENT_CHARS]
+    return strip_tags(content)[:CONTENT_CHARS]

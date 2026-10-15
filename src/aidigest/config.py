@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     rerank_excerpt_chars: Annotated[int, Field(ge=0)] = 200
     rerank_llm_weight: Annotated[float, Field(ge=0, le=1)] = 0.5
     rerank_max_tokens: Annotated[int, Field(ge=1)] = 4000
+    summary_body_chars: Annotated[int, Field(ge=1)] = 4000
+    summary_max_tokens: Annotated[int, Field(ge=1)] = 4000
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
