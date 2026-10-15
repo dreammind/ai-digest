@@ -46,6 +46,10 @@ ENV_NAMES = [
     "BUDGET_MONTHLY_USD",
     "USD_JPY_RATE",
     "PRICING_PATH",
+    "RERANK_TOP_N",
+    "RERANK_EXCERPT_CHARS",
+    "RERANK_LLM_WEIGHT",
+    "RERANK_MAX_TOKENS",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -829,6 +833,26 @@ def test_llm_settings_have_defaults(tmp_path: Path) -> None:
     assert settings.budget_monthly_usd == 2.0
     assert settings.usd_jpy_rate == 160
     assert settings.pricing_path == Path("pricing.yaml")
+
+
+def test_rerank_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-008-1"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.rerank_top_n == 30
+    assert settings.rerank_excerpt_chars == 200
+    assert settings.rerank_llm_weight == 0.5
+    assert settings.rerank_max_tokens == 4000
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["RERANK_TOP_N=0", "RERANK_EXCERPT_CHARS=-1", "RERANK_LLM_WEIGHT=1.5", "RERANK_MAX_TOKENS=0"],
+)
+def test_invalid_rerank_settings_raise_config_error(tmp_path: Path, line: str) -> None:
+    """AC-008-1: 表の制約を満たさなければ ConfigError"""
+    with pytest.raises(ConfigError):
+        load_settings(write_env(tmp_path, line + "\n"))
 
 
 def test_env_example_lists_all_settings_variables() -> None:
