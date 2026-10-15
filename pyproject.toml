@@ -34,6 +34,9 @@ select = ["E", "F", "W", "I", "UP", "B", "ANN", "SIM", "RUF", "PT"]
 # 日本語のコメント・docstring で使う全角記号は紛らわしい文字として扱わない
 allowed-confusables = ["（", "）", "：", "，", "＋", "－", "／"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["aidigest"]
+
 [tool.pyright]
 include = ["src", "tests"]
 pythonVersion = "3.12"
