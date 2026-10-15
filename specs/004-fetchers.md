@@ -1,6 +1,6 @@
-# 004: フェッチャー（RSS / HN 検索 / Qiita 検索）
+# 004: フェッチャー（RSS / HN 検索 / Qiita 検索 / Zenn）
 
-- 状態: 実装済み
+- 状態: 承認済み（zenn_topic の追加）
 - 関連: SPEC.md §4 の 1（取得）、§5（情報源・ソース設定・健全性記録）、CLAUDE.md（外部アクセスのルール）、001、002、003
 
 ## 目的
@@ -10,7 +10,7 @@
 ## 範囲
 - 含む:
   - 共通の HTTP アクセス（ユーザーエージェント、タイムアウト、再試行、同じホストへの間隔）
-  - `rss`（RSS 2.0 / Atom）、`hn_search`（Algolia HN Search API）、`qiita_search`（Qiita API v2）のフェッチャー
+  - `rss`（RSS 2.0 / Atom）、`hn_search`（Algolia HN Search API）、`qiita_search`（Qiita API v2）、`zenn_topic`（Zenn の非公式 API）のフェッチャー
   - 全ソースの取得と、ソース単位の例外の隔離
   - `source_health` への記録
   - 設定値の追加（001 の `Settings`）
@@ -75,6 +75,15 @@
 2. 各記事を `FetchedItem` にする：`url`、`title`、`published_at`（`created_at`）、`content`（`body`）。
 3. 応答の検証と不正時の扱いは hn_search と同じ。
 
+### zenn_topic
+1. Zenn の非公式 API `GET https://zenn.dev/api/articles` を、`topicname=<topic>`、`order=weekly`、`count=48`、`page=1` から `pages` まで順に呼ぶ。応答の `next_page` が無ければ、そこで止める。
+2. 各記事のうち、投稿日時（`published_at`）が `現在 − lookback_days 日` 以降で、いいね数（`liked_count`）が `min_likes` 以上のものだけを残す。ページをまたいで同じ記事（`id` が同じ）は 1 件にする。
+3. 投稿日時の新しい順に並べ、先頭 `max_items` 件を `FetchedItem` にする。
+   - `url`：`https://zenn.dev` + `path`
+   - `title`、`published_at`
+   - `content`：空（一覧の API は本文を返さない）
+4. 応答の検証と不正時の扱いは hn_search と同じ。
+
 ### 全ソースの取得
 1. ソースを設定の順に 1 つずつ取得する（並列にはしない）。
 2. 取得中に例外が起きたソースは、`status = error`、`error` に例外の種類とメッセージ（先頭 500 文字）を入れ、次のソースに進む。
@@ -86,9 +95,9 @@ SPEC §5 の 10 ソースを、次の値で書く。`category` は日本語の�
 
 | id | type | 取得先 | priority | max_items | その他 |
 |---|---|---|---|---|---|
-| `zenn-claudecode` | rss | `https://zenn.dev/topics/claudecode/feed` | 1 | 20 | |
+| `zenn-claudecode` | zenn_topic | `claudecode` | 1 | 20 | 既定値（いいね 5、7 日、2 ページ） |
 | `zenn-anthropic` | rss | `https://zenn.dev/topics/anthropic/feed` | 1 | 20 | |
-| `zenn-llm` | rss | `https://zenn.dev/topics/llm/feed` | 2 | 20 | |
+| `zenn-llm` | zenn_topic | `llm` | 2 | 20 | 同上 |
 | `qiita-claudecode` | qiita_search | `tag:ClaudeCode` | 1 | 20 | 既定値（ストック 3、7 日） |
 | `qiita-llm` | qiita_search | `tag:LLM` | 2 | 20 | 同上 |
 | `qiita-aiagent` | qiita_search | `tag:AIエージェント` | 2 | 20 | 同上 |
@@ -132,6 +141,12 @@ SPEC §5 の 10 ソースを、次の値で書く。`category` は日本語の�
 ### qiita_search
 - **AC-004-16**: Given `query: tag:LLM`、`min_stocks: 3`、`lookback_days: 7`、`max_items: 20` のソースと、現在日時 2026-10-15T21:30Z（日本時間 10/16） / When 取得する / Then クエリは `tag:LLM created:>=2026-10-09 stocks:>=3`、`per_page=20` になる。`max_items` が 100 を超えていれば `per_page=100` になる
 - **AC-004-17**: Given 記事の一覧の応答 / When 取得する / Then 各記事が振る舞いのとおり `FetchedItem` になる。不正な記事・応答の扱いは AC-004-15 と同じ
+
+### zenn_topic
+- **AC-004-23**: Given `topic: claudecode`、`pages: 2` のソース / When 取得する / Then API は `topicname=claudecode`、`order=weekly`、`count=48` で `page=1` と `page=2` の 2 回呼ばれる。1 ページ目の応答に `next_page` が無ければ 1 回だけ呼ばれる
+- **AC-004-24**: Given 現在日時 2026-10-15T21:30Z、`lookback_days: 7`、`min_likes: 5` と、投稿日時・いいね数がさまざまな記事 / When 取得する / Then 2026-10-08T21:30Z 以降に投稿され、いいねが 5 以上の記事だけが、投稿日時の新しい順に `max_items` 件以内で返る。ページをまたいだ重複は 1 件になる
+- **AC-004-25**: Given 記事の応答 / When 取得する / Then `url` は `https://zenn.dev` + `path`、`content` は空になる
+- **AC-004-26**: Given 一部の記事が不正な応答、または全体が不正な応答 / When 取得する / Then 不正な記事だけがスキップされる。全体が不正ならそのソースの取得失敗になる
 
 ### 全ソースの取得と記録
 - **AC-004-18**: Given 3 つのソースのうち 2 つ目が例外を出す / When 全ソースを取得する / Then 1 つ目と 3 つ目の記事が返り、2 つ目は `status = error` で、例外の種類とメッセージ（500 文字以内）が残る。ほかは `status = ok` で `item_count` が件数になる

@@ -24,7 +24,7 @@ Claude Code と LLM 全般に関する有用な情報を毎朝1通のダイジ�
 cron (毎朝 6:30 JST)
   → 1. 取得        : RSS/API から新着を収集（ソース単位で例外を隔離し、結果を source_health に記録）
   → 2. 正規化      : URL 正規化、content_hash 計算、既読(DB)との重複排除。取得した全記事は、配信の有無にかかわらずこの時点で既読として記録する
-  → 3. 事前絞込    : 時間窓（36 時間。`qiita_search` は対象外）、除外キーワード、ソース別ルール（require / hide）で除外（LLM を使わない）
+  → 3. 事前絞込    : 時間窓（36 時間。`qiita_search` / `zenn_topic` は対象外）、除外キーワード、ソース別ルール（require / hide）で除外（LLM を使わない）
   → 4. ローカルスコア: テーマ別キーワードの加点・減点とソース優先度で採点し、タイトルが似た重複話題を除く（LLM を使わない）
   → 5. LLM 再ランク: 上位 約 30 件のみ、タイトル+抜粋を 1 回の呼び出しで関連度判定し、ローカルスコアと混ぜる（失敗時はローカルスコア順のまま続行）
   → 6. 枠配分      : セクション別の上限（Claude Code 優先）を守って、最終的な N 件を選ぶ
@@ -40,9 +40,9 @@ cron (毎朝 6:30 JST)
 
 | 区分 | ソース | 取得方法 | priority |
 |---|---|---|---|
-| 日本語 | Zenn（`claudecode` トピック） | RSS（`https://zenn.dev/topics/claudecode/feed`） | 1 |
+| 日本語 | Zenn（`claudecode` トピック） | Zenn の非公式 API（`zenn_topic`。下記「Zenn の取得方法」） | 1 |
 | 日本語 | Zenn（`anthropic` トピック） | RSS（`https://zenn.dev/topics/anthropic/feed`） | 1 |
-| 日本語 | Zenn（`llm` トピック） | RSS（`https://zenn.dev/topics/llm/feed`） | 2 |
+| 日本語 | Zenn（`llm` トピック） | 同上 | 2 |
 | 日本語 | Qiita（`ClaudeCode` タグ） | Qiita API v2 の記事検索（`qiita_search`。下記「Qiita の取得方法」） | 1 |
 | 日本語 | Qiita（`LLM` タグ） | 同上 | 2 |
 | 日本語 | Qiita（`AIエージェント` タグ） | 同上 | 2 |
@@ -61,6 +61,13 @@ MVP で使わないことにしたソースと理由:
 - Zenn の `gemini` / `openai` / `mcp` トピック、Qiita の `Gemini` / `OpenAI` / `MCP` / `生成AI` タグ：ハッカソン作品や関係の薄い連載が多い、件数が少ない、ほかのタグと重なる
 - OpenAI / Google DeepMind などの公式ブログ、arXiv：Phase 2 以降で検討する
 
+### Zenn の取得方法
+- Zenn のトピックの RSS は 20 件しか返さない。`claudecode` トピックは 1 日に約 48 本の投稿があり、RSS では約 12 時間分（`llm` は約 14 時間分）しか取れず、毎朝 1 回の取得では半分以上を取りこぼす（2026-10-15 の実測）。
+- そのため、`claudecode` と `llm` は Zenn の非公式 API（`/api/articles`）を使う。過去 1 週間の人気順（`order=weekly`、1 ページ 48 件）を `pages` ページ取り、投稿から `lookback_days` 日以内で、いいね数が `min_likes` 以上の記事だけを残す（初期値は 5、7 日、2 ページ。10/7〜10/15 の実データで、いいね 5 以上は `claudecode` が 1 日約 2.7 件、`llm` が約 2.4 件）。
+- Qiita と同じく、基準に届いた日に初めて取得され、既読になる。時間窓（36 時間）は適用しない。
+- 非公式 API は公式に案内されていないため、予告なく変わったり止まったりしうる。止まった場合は `source_health` とダイジェストのフッターで分かる。
+- `anthropic` トピックは RSS の 20 件で約 88 時間分を取れており取りこぼしが無いため、RSS のままにする。
+
 ### Qiita の取得方法
 - 投稿直後の記事はいいね・ストックが付いておらず、質の判断ができない。そのため、投稿から `lookback_days` 日以内で、ストック数が `min_stocks` 以上になった記事だけを取得する（初期値は 3 と 7 日。10/1〜10/7 の実データで 1 日約 1.4 件）。
 - 基準に届いた日に初めて取得され、既読になる。基準に届かなかった記事は取得しないので、既読にもならない。
@@ -71,10 +78,10 @@ MVP で使わないことにしたソースと理由:
 ソースは `sources.yaml` で管理し、追加・削除をコード変更なしで行えるようにする。
 
 ### ソース設定（sources.yaml）の項目
-- `id`、`type`（`rss` / `github_release` / `hn_search` / `arxiv` / `qiita_search`）、取得先（`url`、`repo`、`query`）、`category`、`priority`（1〜3）
+- `id`、`type`（`rss` / `github_release` / `hn_search` / `arxiv` / `qiita_search` / `zenn_topic`）、取得先（`url`、`repo`、`query`、`topic`）、`category`、`priority`（1〜3）
 - ソース別ルール: `require_keywords`（いずれかを含む記事だけ通す）、`hide_keywords`（含む記事を除外）、`highlight_keywords`（含む記事を加点）
 - 取得上限: `max_items`（1 回の取得で扱う最大件数）
-- `min_stocks`、`lookback_days`（`qiita_search` のみ。上記「Qiita の取得方法」）
+- `min_stocks`（`qiita_search` のみ）、`min_likes` と `pages`（`zenn_topic` のみ）、`lookback_days`（`qiita_search` と `zenn_topic`）。上記「Zenn の取得方法」「Qiita の取得方法」
 - `min_score`（Hacker News のみ。一定スコア未満を除外）。候補の確認数は `max_items` の 3 倍までとし、API 呼び出しが増えすぎないようにする
 - `recheck_changed`（true のソースのみ、同じ URL でも `content_hash` が変わったら再収集する。GitHub Releases や changelog 向け。通常のブログ記事は再配信しない）
 
