@@ -12,6 +12,7 @@ from aidigest.config import (
     ConfigError,
     GithubReleaseSource,
     HnSearchSource,
+    QiitaSearchSource,
     RssSource,
     Settings,
     load_settings,
@@ -444,6 +445,101 @@ def test_query_operator_outside_query_sources_is_excluded(tmp_path: Path, target
     path = write_sources(
         tmp_path, f"sources:\n  - id: bad\n    {target}\n    {BASE}\n    query_operator: or\n"
     )
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+QIITA_BASE = "category: japanese\n    priority: 1\n    max_items: 20"
+
+
+def test_qiita_search_is_loaded_with_defaults(tmp_path: Path) -> None:
+    """AC-001-18"""
+    path = write_sources(
+        tmp_path,
+        """\
+        sources:
+          - id: qiita-claudecode
+            type: qiita_search
+            query: "tag:ClaudeCode"
+            category: japanese
+            priority: 1
+            max_items: 20
+          - id: qiita-llm
+            type: qiita_search
+            query: "tag:LLM"
+            category: japanese
+            priority: 2
+            max_items: 20
+            min_stocks: 10
+            lookback_days: 3
+        """,
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.errors == []
+    default, custom = loaded.sources
+    assert isinstance(default, QiitaSearchSource)
+    assert isinstance(custom, QiitaSearchSource)
+    assert default.query == "tag:ClaudeCode"
+    assert default.min_stocks == 3
+    assert default.lookback_days == 7
+    assert custom.min_stocks == 10
+    assert custom.lookback_days == 3
+
+
+@pytest.mark.parametrize("query_line", ["", 'query: ""', 'query: ["tag:LLM"]'])
+def test_qiita_search_without_valid_query_is_excluded(tmp_path: Path, query_line: str) -> None:
+    """AC-001-19: query が無い、空、または文字列でない"""
+    path = write_sources(
+        tmp_path,
+        f"sources:\n  - id: bad\n    type: qiita_search\n    {query_line}\n    {QIITA_BASE}\n",
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+@pytest.mark.parametrize(
+    "extra", ["min_stocks: -1", "lookback_days: 0"], ids=["negative-stocks", "zero-days"]
+)
+def test_qiita_search_with_invalid_limits_is_excluded(tmp_path: Path, extra: str) -> None:
+    """AC-001-20"""
+    path = write_sources(
+        tmp_path,
+        f"sources:\n  - id: bad\n    type: qiita_search\n    query: tag:LLM\n"
+        f"    {QIITA_BASE}\n    {extra}\n",
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        f"type: rss\n    url: https://example.com/f\n    {BASE}\n    min_stocks: 3",
+        f"type: hn_search\n    query: LLM\n    {BASE}\n    lookback_days: 7",
+        f"type: qiita_search\n    query: tag:LLM\n    {QIITA_BASE}\n    query_operator: or",
+        f"type: qiita_search\n    query: tag:LLM\n    {QIITA_BASE}\n    min_score: 10",
+    ],
+    ids=[
+        "min_stocks-on-rss",
+        "lookback_days-on-hn",
+        "query_operator-on-qiita",
+        "min_score-on-qiita",
+    ],
+)
+def test_qiita_only_fields_are_rejected_elsewhere(tmp_path: Path, entry: str) -> None:
+    """AC-001-21"""
+    path = write_sources(tmp_path, f"sources:\n  - id: bad\n    {entry}\n")
 
     loaded = load_sources(path)
 
