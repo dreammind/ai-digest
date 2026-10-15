@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ai-digest
+output/
+logs/
+*.db
+*.sqlite3
+.claude/settings.local.json
