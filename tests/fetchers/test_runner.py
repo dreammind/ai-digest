@@ -12,7 +12,7 @@ from pydantic import TypeAdapter
 from aidigest.config import Source, load_sources
 from aidigest.db import open_db
 from aidigest.fetchers.runner import SourceHealth, fetch_all, record_health
-from tests.fetchers.helpers import make_client, rss_source
+from tests.fetchers.helpers import hn_source, make_client, qiita_source, rss_source
 
 NOW = datetime(2026, 10, 15, 21, 30, tzinfo=UTC)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +60,39 @@ def test_failing_source_does_not_stop_others(failure: str, expected_error: str) 
     assert b.error is not None
     assert b.error.startswith(expected_error)
     assert len(b.error) <= 500
+
+
+def test_each_source_type_is_dispatched_to_its_fetcher() -> None:
+    """AC-004-18: rss / hn_search / qiita_search がそれぞれのフェッチャーで取得される"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "hn.algolia.com":
+            hit = {
+                "objectID": "1",
+                "title": "HN story",
+                "url": "https://example.com/hn",
+                "created_at": "2026-10-15T10:00:00Z",
+            }
+            return httpx.Response(200, json={"hits": [hit]})
+        if request.url.host == "qiita.com":
+            article = {
+                "url": "https://qiita.com/u/items/1",
+                "title": "Qiita article",
+                "created_at": "2026-10-12T10:00:00+09:00",
+            }
+            return httpx.Response(200, json=[article])
+        return httpx.Response(200, text=feed("rss1"))
+
+    sources: list[Source] = [rss_source(id="r"), hn_source(id="h"), qiita_source(id="q")]
+
+    result = fetch_all(make_client(handler), sources, NOW, time_window_hours=36)
+
+    assert [(i.source_id, i.title) for i in result.items] == [
+        ("r", "rss1"),
+        ("h", "HN story"),
+        ("q", "Qiita article"),
+    ]
+    assert [h.status for h in result.health] == ["ok", "ok", "ok"]
 
 
 @pytest.mark.parametrize(
