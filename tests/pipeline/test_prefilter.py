@@ -245,3 +245,21 @@ def test_order_is_kept_and_counts_are_logged(
     assert "hide_keywords=1" in summary
     assert "require_keywords=1" in summary
     assert "passed=2" in summary
+
+
+def test_unknown_source_gets_only_common_rules(
+    conn: sqlite3.Connection, caplog: pytest.LogCaptureFixture
+) -> None:
+    """エラー時の挙動（設定に無いソース）: ソース別ルールは適用せず、WARNING を出す"""
+    articles = register_items(
+        conn, [item(source_id="required", title="unrelated"), item(title="hiring")], SOURCES, NOW
+    )
+    others = {k: v for k, v in SOURCES.items() if k != "required"}
+
+    with caplog.at_level(logging.WARNING, logger="aidigest.pipeline.prefilter"):
+        passed = prefilter(conn, articles, others, ["hiring"], NOW, time_window_hours=36)
+
+    assert titles(passed) == ["unrelated"], "require_keywords は適用されない"
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert "required" in warnings[0]
