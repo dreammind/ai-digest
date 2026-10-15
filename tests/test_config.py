@@ -31,6 +31,12 @@ ENV_NAMES = [
     "MAIL_TO",
     "SOURCES_PATH",
     "DB_PATH",
+    "USER_AGENT",
+    "HTTP_TIMEOUT_SECONDS",
+    "HTTP_RETRIES",
+    "HTTP_BACKOFF_SECONDS",
+    "HOST_INTERVAL_SECONDS",
+    "TIME_WINDOW_HOURS",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -649,6 +655,34 @@ def test_secrets_are_not_exposed_in_str_repr_or_logs(
     for text in (str(settings), repr(settings), caplog.text):
         assert "sk-very-secret" not in text
         assert "pw-very-secret" not in text
+
+
+def test_fetcher_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-004-21"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.user_agent == "aidigest/0.1 (+https://github.com/dreammind/ai-digest)"
+    assert settings.http_timeout_seconds == 20
+    assert settings.http_retries == 2
+    assert settings.http_backoff_seconds == 1.0
+    assert settings.host_interval_seconds == 1.0
+    assert settings.time_window_hours == 36
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "HTTP_TIMEOUT_SECONDS=0",
+        "HTTP_RETRIES=-1",
+        "HTTP_BACKOFF_SECONDS=-1",
+        "HOST_INTERVAL_SECONDS=-0.5",
+        "TIME_WINDOW_HOURS=0",
+    ],
+)
+def test_invalid_fetcher_settings_raise_config_error(tmp_path: Path, line: str) -> None:
+    """AC-004-21: 表の制約（正の数、0 以上）を満たさなければ ConfigError"""
+    with pytest.raises(ConfigError):
+        load_settings(write_env(tmp_path, line + "\n"))
 
 
 def test_env_example_lists_all_settings_variables() -> None:

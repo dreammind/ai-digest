@@ -37,7 +37,7 @@ select = ["E", "F", "W", "I", "UP", "B", "ANN", "SIM", "RUF", "PT"]
 allowed-confusables = ["（", "）", "：", "，", "＋", "－", "／"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aidigest"]
+known-first-party = ["aidigest", "tests"]
 
 [tool.pyright]
 include = ["src", "tests"]
