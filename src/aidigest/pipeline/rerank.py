@@ -18,6 +18,7 @@ from aidigest.config import Settings
 from aidigest.llm import BudgetExceeded, LlmCaller, LlmError
 from aidigest.pipeline.scoring import ScoredArticle
 from aidigest.pipeline.text import content_excerpt
+from aidigest.pipeline.tool_response import single_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -160,13 +161,11 @@ def _ask(
 
 def _parse(response: Message, count: int) -> tuple[dict[int, float] | None, str]:
     """応答を検証し、番号 → 関連度を返す。不正なら (None, 理由)。"""
-    if response.stop_reason in ("max_tokens", "refusal"):
-        return None, f"stop_reason={response.stop_reason}"
-    calls = [b for b in response.content if b.type == "tool_use" and b.name == TOOL_NAME]
-    if len(calls) != 1:
-        return None, f"{TOOL_NAME} の呼び出しが {len(calls)} 回"
+    tool_input, problem = single_tool_input(response, TOOL_NAME)
+    if tool_input is None:
+        return None, problem
     try:
-        submission = _Submission.model_validate(calls[0].input)
+        submission = _Submission.model_validate(tool_input)
     except ValidationError as e:
         return None, f"スキーマ違反: {e.error_count()} 件"
     ids = [s.id for s in submission.scores]

@@ -2,27 +2,26 @@
 
 import logging
 import sqlite3
-from collections.abc import Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterator, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Unpack
 
 import pytest
-from anthropic.types import Message, MessageParam
+from anthropic.types import Message
 from pydantic import TypeAdapter
 
 from aidigest.config import Source, load_settings
 from aidigest.db import open_db
-from aidigest.llm import BudgetExceeded, CreateOptions, LlmError, Purpose
+from aidigest.llm import BudgetExceeded, LlmError
 from aidigest.models import FetchedItem
 from aidigest.pipeline.dedupe import register_items
 from aidigest.pipeline.rerank import TOOL_DEFINITION, RankedArticle, RerankParams, rerank
 from aidigest.pipeline.scoring import ScoredArticle
+from tests.llm_fakes import MODEL, FakeLlm, message
+from tests.llm_fakes import tool_reply as fake_tool_reply
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 10, 16, 21, 30, tzinfo=UTC)
-MODEL = "claude-haiku-5-5"
 PARAMS = RerankParams(top_n=30, excerpt_chars=200, llm_weight=0.5, max_tokens=4000)
 SOURCES: dict[str, Source] = {
     "blog": TypeAdapter[Source](Source).validate_python(
@@ -38,61 +37,8 @@ SOURCES: dict[str, Source] = {
 }
 
 
-@dataclass(frozen=True)
-class Call:
-    purpose: Purpose
-    messages: list[MessageParam]
-    max_tokens: int
-    options: CreateOptions
-
-
-class FakeLlm:
-    """`LlmClient` の偽物。決まった順に応答を返すか、例外を送出する。"""
-
-    model = MODEL
-
-    def __init__(self, outcomes: Sequence[Message | Exception]) -> None:
-        self.outcomes = list(outcomes)
-        self.calls: list[Call] = []
-
-    def create(
-        self,
-        purpose: Purpose,
-        *,
-        messages: Iterable[MessageParam],
-        max_tokens: int,
-        **options: Unpack[CreateOptions],
-    ) -> Message:
-        self.calls.append(Call(purpose, list(messages), max_tokens, options))
-        outcome = self.outcomes.pop(0)
-        if isinstance(outcome, Exception):
-            raise outcome
-        return outcome
-
-
-def message(content: Sequence[Mapping[str, object]], stop_reason: str = "tool_use") -> Message:
-    return Message.model_validate(
-        {
-            "id": "msg_test",
-            "type": "message",
-            "role": "assistant",
-            "model": MODEL,
-            "content": content,
-            "stop_reason": stop_reason,
-            "stop_sequence": None,
-            "usage": {"input_tokens": 10, "output_tokens": 10},
-        }
-    )
-
-
 def tool_reply(scores: list[dict[str, object]], stop_reason: str = "tool_use") -> Message:
-    block = {
-        "type": "tool_use",
-        "id": "toolu_test",
-        "name": "submit_relevance",
-        "input": {"scores": scores},
-    }
-    return message([block], stop_reason)
+    return fake_tool_reply("submit_relevance", {"scores": scores}, stop_reason)
 
 
 def scores_for(relevances: Sequence[float]) -> list[dict[str, object]]:
@@ -132,13 +78,6 @@ def titles(ranked: Sequence[RankedArticle]) -> list[str]:
     return [r.scored.article.item.title for r in ranked]
 
 
-def user_text(llm: FakeLlm, call: int = 0) -> str:
-    (first,) = llm.calls[call].messages
-    content = first["content"]
-    assert isinstance(content, str)
-    return content
-
-
 # ------------------------------------------------------------ リクエスト
 
 
@@ -150,7 +89,7 @@ def test_request_contains_top_n_with_settings(conn: sqlite3.Connection) -> None:
     rerank(conn, articles, llm, PARAMS)
 
     (call,) = llm.calls
-    text = user_text(llm)
+    text = llm.user_text()
     assert "[1] 出典: blog" in text
     assert "タイトル: Title 0" in text
     assert "[30]" in text
@@ -183,7 +122,7 @@ def test_excerpt_is_cleaned_and_truncated(conn: sqlite3.Connection) -> None:
         RerankParams(top_n=30, excerpt_chars=11, llm_weight=0.5, max_tokens=4000),
     )
 
-    text = user_text(llm)
+    text = llm.user_text()
     assert "抜粋: Hello world\n" in text
     assert "抜粋: 0123456789A\n" in text
     assert "抜粋: なし" in text
