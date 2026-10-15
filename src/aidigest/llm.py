@@ -9,7 +9,7 @@ import sqlite3
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
-from typing import Literal, TypedDict, Unpack
+from typing import Literal, Protocol, TypedDict, Unpack
 
 import anthropic
 import httpx2
@@ -59,6 +59,22 @@ class CreateOptions(TypedDict, total=False):
     cache_control: CacheControlEphemeralParam
     metadata: MetadataParam
     stop_sequences: list[str]
+
+
+class LlmCaller(Protocol):
+    """`LlmClient` と同じ呼び出し方ができるもの（テストでは偽物に差し替える）。"""
+
+    @property
+    def model(self) -> str: ...
+
+    def create(
+        self,
+        purpose: Purpose,
+        *,
+        messages: Iterable[MessageParam],
+        max_tokens: int,
+        **options: Unpack[CreateOptions],
+    ) -> Message: ...
 
 
 @dataclass(frozen=True)
@@ -149,6 +165,11 @@ class LlmClient:
             max_retries=settings.llm_max_retries,
             http_client=http_client,
         )
+
+    @property
+    def model(self) -> str:
+        """使用するモデル（設定の LLM_MODEL）。"""
+        return self._model
 
     def create(
         self,

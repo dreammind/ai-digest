@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     budget_monthly_usd: Annotated[float, Field(ge=0)] = 2.0
     usd_jpy_rate: Annotated[float, Field(gt=0)] = 160
     pricing_path: Path = Path("pricing.yaml")
+    rerank_top_n: Annotated[int, Field(ge=1)] = 30
+    rerank_excerpt_chars: Annotated[int, Field(ge=0)] = 200
+    rerank_llm_weight: Annotated[float, Field(ge=0, le=1)] = 0.5
+    rerank_max_tokens: Annotated[int, Field(ge=1)] = 4000
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
