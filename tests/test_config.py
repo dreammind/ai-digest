@@ -38,6 +38,7 @@ ENV_NAMES = [
     "HTTP_BACKOFF_SECONDS",
     "HOST_INTERVAL_SECONDS",
     "TIME_WINDOW_HOURS",
+    "TOPICS_PATH",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -803,6 +804,11 @@ def test_invalid_fetcher_settings_raise_config_error(tmp_path: Path, line: str) 
     """AC-004-21: 表の制約（正の数、0 以上）を満たさなければ ConfigError"""
     with pytest.raises(ConfigError):
         load_settings(write_env(tmp_path, line + "\n"))
+
+
+def test_topics_path_defaults_to_topics_yaml(tmp_path: Path) -> None:
+    """AC-006-3"""
+    assert load_settings(tmp_path / "no-such.env").topics_path == Path("topics.yaml")
 
 
 def test_env_example_lists_all_settings_variables() -> None:
