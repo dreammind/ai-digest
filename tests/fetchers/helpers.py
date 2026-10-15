@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import httpx
 
-from aidigest.config import HnSearchSource, QiitaSearchSource, RssSource
+from aidigest.config import HnSearchSource, QiitaSearchSource, RssSource, ZennTopicSource
 from aidigest.fetchers.http import HttpClient
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -63,3 +63,8 @@ def hn_source(**overrides: object) -> HnSearchSource:
 def qiita_source(**overrides: object) -> QiitaSearchSource:
     data = {"id": "qiita", "type": "qiita_search", "query": "tag:LLM", **BASE}
     return QiitaSearchSource.model_validate({**data, **overrides})
+
+
+def zenn_source(**overrides: object) -> ZennTopicSource:
+    data = {"id": "zenn", "type": "zenn_topic", "topic": "claudecode", **BASE}
+    return ZennTopicSource.model_validate({**data, **overrides})

@@ -12,7 +12,7 @@ from pydantic import TypeAdapter
 from aidigest.config import Source, load_sources
 from aidigest.db import open_db
 from aidigest.fetchers.runner import SourceHealth, fetch_all, record_health
-from tests.fetchers.helpers import hn_source, make_client, qiita_source, rss_source
+from tests.fetchers.helpers import hn_source, make_client, qiita_source, rss_source, zenn_source
 
 NOW = datetime(2026, 10, 15, 21, 30, tzinfo=UTC)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +74,15 @@ def test_each_source_type_is_dispatched_to_its_fetcher() -> None:
                 "created_at": "2026-10-15T10:00:00Z",
             }
             return httpx.Response(200, json={"hits": [hit]})
+        if request.url.host == "zenn.dev":
+            article = {
+                "id": 1,
+                "title": "Zenn article",
+                "path": "/u/articles/a1",
+                "published_at": "2026-10-14T10:00:00+09:00",
+                "liked_count": 10,
+            }
+            return httpx.Response(200, json={"articles": [article], "next_page": None})
         if request.url.host == "qiita.com":
             article = {
                 "url": "https://qiita.com/u/items/1",
@@ -83,7 +92,12 @@ def test_each_source_type_is_dispatched_to_its_fetcher() -> None:
             return httpx.Response(200, json=[article])
         return httpx.Response(200, text=feed("rss1"))
 
-    sources: list[Source] = [rss_source(id="r"), hn_source(id="h"), qiita_source(id="q")]
+    sources: list[Source] = [
+        rss_source(id="r"),
+        hn_source(id="h"),
+        qiita_source(id="q"),
+        zenn_source(id="z"),
+    ]
 
     result = fetch_all(make_client(handler), sources, NOW, time_window_hours=36)
 
@@ -91,8 +105,9 @@ def test_each_source_type_is_dispatched_to_its_fetcher() -> None:
         ("r", "rss1"),
         ("h", "HN story"),
         ("q", "Qiita article"),
+        ("z", "Zenn article"),
     ]
-    assert [h.status for h in result.health] == ["ok", "ok", "ok"]
+    assert [h.status for h in result.health] == ["ok", "ok", "ok", "ok"]
 
 
 @pytest.mark.parametrize(
@@ -161,9 +176,9 @@ def test_repository_sources_yaml_matches_spec() -> None:
         for s in loaded.sources
     ]
     assert actual == [
-        ("zenn-claudecode", "rss", "japanese", 1, 20, None),
+        ("zenn-claudecode", "zenn_topic", "japanese", 1, 20, None),
         ("zenn-anthropic", "rss", "japanese", 1, 20, None),
-        ("zenn-llm", "rss", "japanese", 2, 20, None),
+        ("zenn-llm", "zenn_topic", "japanese", 2, 20, None),
         ("qiita-claudecode", "qiita_search", "japanese", 1, 20, None),
         ("qiita-llm", "qiita_search", "japanese", 2, 20, None),
         ("qiita-aiagent", "qiita_search", "japanese", 2, 20, None),
@@ -175,9 +190,7 @@ def test_repository_sources_yaml_matches_spec() -> None:
     targets = {
         s.id: (str(getattr(s, "url", "")), getattr(s, "query", None)) for s in loaded.sources
     }
-    assert targets["zenn-claudecode"][0] == "https://zenn.dev/topics/claudecode/feed"
     assert targets["zenn-anthropic"][0] == "https://zenn.dev/topics/anthropic/feed"
-    assert targets["zenn-llm"][0] == "https://zenn.dev/topics/llm/feed"
     assert targets["simonw"][0] == "https://simonwillison.net/atom/everything/"
     assert targets["qiita-claudecode"][1] == "tag:ClaudeCode"
     assert targets["qiita-llm"][1] == "tag:LLM"
@@ -185,5 +198,7 @@ def test_repository_sources_yaml_matches_spec() -> None:
     assert targets["hn-claude-code"][1] == ["Claude Code"]
     assert targets["hn-llm"][1] == ["LLM"]
     assert targets["hn-models"][1] == ["Gemini", "OpenAI", "Anthropic", "GPT"]
+    zenn = {s.id: getattr(s, "topic", None) for s in loaded.sources if s.type == "zenn_topic"}
+    assert zenn == {"zenn-claudecode": "claudecode", "zenn-llm": "llm"}
     models = next(s for s in loaded.sources if s.id == "hn-models")
     assert getattr(models, "query_operator", None) == "or"
