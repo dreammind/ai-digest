@@ -112,7 +112,7 @@ MVP で使わないことにしたソースと理由:
 
 ### LLM 出力の扱い
 - 再ランク・要約とも、Claude の tool use でスキーマを強制し、応答は pydantic で検証する（正規表現による JSON 抽出はしない）。
-- 要約のスキーマ（日本語で出力）: `tldr`（1 文）、`key_takeaways`（箇条書き）、`summary`、`topics`、`novelty`（1〜5）、`apply_to_claude_code`（Claude Code を使った開発にどう活かせるか。無ければ空）。
+- 要約のスキーマ（日本語で出力）: `title_ja`（日本語のタイトル。§8 の「タイトル（日本語）」に使う）、`tldr`（1 文）、`key_takeaways`（箇条書き）、`summary`、`topics`、`novelty`（1〜5）、`apply_to_claude_code`（Claude Code を使った開発にどう活かせるか。無ければ空）。
 - 応答が途中で切れた場合（`stop_reason` が `max_tokens`）や検証に失敗した場合は 1 回だけリトライし、それでも失敗した記事は、原題と原文リンクだけで配信する（翻訳も要約の一部なので、この場合は原題のまま）。全体は止めない。
 - API の一時エラー（レート制限など）は SDK の自動リトライ設定で扱い、待ち時間と回数に上限を置く。
 
