@@ -372,6 +372,28 @@ def test_unreadable_sources_file_raises_config_error(tmp_path: Path, content: st
         load_sources(path)
 
 
+def test_exclude_keywords_are_loaded(tmp_path: Path) -> None:
+    """AC-005-11"""
+    with_keywords = write_sources(tmp_path, 'exclude_keywords: ["求人", "hiring"]\nsources: []\n')
+    assert load_sources(with_keywords).exclude_keywords == ["求人", "hiring"]
+
+    without = write_sources(tmp_path, "sources: []\n")
+    assert load_sources(without).exclude_keywords == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    ["exclude_keywords: hiring", 'exclude_keywords: ["ok", ""]', "exclude_keywords: [1, {a: b}]"],
+    ids=["not-list", "empty-string", "not-string"],
+)
+def test_invalid_exclude_keywords_raise_config_error(tmp_path: Path, line: str) -> None:
+    """AC-005-12"""
+    path = write_sources(tmp_path, f"{line}\nsources: []\n")
+
+    with pytest.raises(ConfigError):
+        load_sources(path)
+
+
 def test_empty_sources_list_is_valid(tmp_path: Path) -> None:
     """AC-001-8 の境界: sources が空のリストなら ConfigError にはならない"""
     loaded = load_sources(write_sources(tmp_path, "sources: []\n"))
