@@ -136,8 +136,21 @@ class QiitaSearchSource(_SourceBase):
     lookback_days: Annotated[int, Field(ge=1)] = 7
 
 
+class ZennTopicSource(_SourceBase):
+    type: Literal["zenn_topic"]
+    topic: NonEmptyStr  # Zenn のトピック名（例: claudecode）
+    min_likes: Annotated[int, Field(ge=0)] = 5
+    lookback_days: Annotated[int, Field(ge=1)] = 7
+    pages: Annotated[int, Field(ge=1)] = 2
+
+
 Source = Annotated[
-    RssSource | GithubReleaseSource | HnSearchSource | ArxivSource | QiitaSearchSource,
+    RssSource
+    | GithubReleaseSource
+    | HnSearchSource
+    | ArxivSource
+    | QiitaSearchSource
+    | ZennTopicSource,
     Field(discriminator="type"),
 ]
 
