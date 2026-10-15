@@ -15,6 +15,7 @@ from aidigest.config import (
     QiitaSearchSource,
     RssSource,
     Settings,
+    ZennTopicSource,
     load_settings,
     load_sources,
 )
@@ -545,6 +546,103 @@ def test_qiita_search_with_invalid_limits_is_excluded(tmp_path: Path, extra: str
 )
 def test_qiita_only_fields_are_rejected_elsewhere(tmp_path: Path, entry: str) -> None:
     """AC-001-21"""
+    path = write_sources(tmp_path, f"sources:\n  - id: bad\n    {entry}\n")
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+def test_zenn_topic_is_loaded_with_defaults(tmp_path: Path) -> None:
+    """AC-001-22"""
+    path = write_sources(
+        tmp_path,
+        """\
+        sources:
+          - id: zenn-claudecode
+            type: zenn_topic
+            topic: claudecode
+            category: japanese
+            priority: 1
+            max_items: 20
+          - id: zenn-llm
+            type: zenn_topic
+            topic: llm
+            category: japanese
+            priority: 2
+            max_items: 20
+            min_likes: 10
+            lookback_days: 3
+            pages: 1
+        """,
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.errors == []
+    default, custom = loaded.sources
+    assert isinstance(default, ZennTopicSource)
+    assert isinstance(custom, ZennTopicSource)
+    assert default.topic == "claudecode"
+    assert (default.min_likes, default.lookback_days, default.pages) == (5, 7, 2)
+    assert (custom.min_likes, custom.lookback_days, custom.pages) == (10, 3, 1)
+
+
+@pytest.mark.parametrize("topic_line", ["", 'topic: ""'], ids=["missing", "empty"])
+def test_zenn_topic_without_topic_is_excluded(tmp_path: Path, topic_line: str) -> None:
+    """AC-001-23"""
+    path = write_sources(
+        tmp_path,
+        f"sources:\n  - id: bad\n    type: zenn_topic\n    {topic_line}\n    {QIITA_BASE}\n",
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+@pytest.mark.parametrize(
+    "extra",
+    ["min_likes: -1", "lookback_days: 0", "pages: 0"],
+    ids=["negative-likes", "zero-days", "zero-pages"],
+)
+def test_zenn_topic_with_invalid_limits_is_excluded(tmp_path: Path, extra: str) -> None:
+    """AC-001-24"""
+    path = write_sources(
+        tmp_path,
+        f"sources:\n  - id: bad\n    type: zenn_topic\n    topic: llm\n"
+        f"    {QIITA_BASE}\n    {extra}\n",
+    )
+
+    loaded = load_sources(path)
+
+    assert loaded.sources == []
+    assert [e.source_id for e in loaded.errors] == ["bad"]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        f"type: rss\n    url: https://example.com/f\n    {BASE}\n    topic: llm",
+        f"type: qiita_search\n    query: tag:LLM\n    {QIITA_BASE}\n    min_likes: 5",
+        f"type: hn_search\n    query: LLM\n    {BASE}\n    pages: 2",
+        f"type: zenn_topic\n    topic: llm\n    {QIITA_BASE}\n    query: LLM",
+        f"type: zenn_topic\n    topic: llm\n    {QIITA_BASE}\n    min_stocks: 3",
+        f"type: zenn_topic\n    topic: llm\n    {QIITA_BASE}\n    min_score: 10",
+    ],
+    ids=[
+        "topic-on-rss",
+        "min_likes-on-qiita",
+        "pages-on-hn",
+        "query-on-zenn",
+        "min_stocks-on-zenn",
+        "min_score-on-zenn",
+    ],
+)
+def test_zenn_only_fields_are_rejected_elsewhere(tmp_path: Path, entry: str) -> None:
+    """AC-001-25"""
     path = write_sources(tmp_path, f"sources:\n  - id: bad\n    {entry}\n")
 
     loaded = load_sources(path)
