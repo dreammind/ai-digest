@@ -61,24 +61,32 @@ def test_loads_all_source_types_in_order_with_defaults(tmp_path: Path) -> None:
     """AC-001-1"""
     path = write_sources(
         tmp_path,
-        f"""\
+        """\
         sources:
           - id: simonw
             type: rss
             url: https://simonwillison.net/atom/everything/
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: cc-releases
             type: github_release
             repo: anthropics/claude-code
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: hn
             type: hn_search
             query: Claude Code
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: arxiv
             type: arxiv
             query: LLM agents
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
@@ -151,11 +159,15 @@ def test_entry_without_required_target_is_excluded(
         sources:
           - id: broken
             type: {source_type}
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: ok
             type: rss
             url: https://example.com/feed.xml
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
@@ -250,16 +262,20 @@ def test_duplicate_id_keeps_first_entry(tmp_path: Path) -> None:
     """AC-001-6"""
     path = write_sources(
         tmp_path,
-        f"""\
+        """\
         sources:
           - id: dup
             type: rss
             url: https://example.com/first
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: dup
             type: rss
             url: https://example.com/second
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
@@ -276,13 +292,15 @@ def test_non_mapping_entry_is_excluded_without_id(tmp_path: Path) -> None:
     """AC-001-2 / AC-001-3: マッピングでないエントリも、そのエントリだけ除外される"""
     path = write_sources(
         tmp_path,
-        f"""\
+        """\
         sources:
           - just-a-string
           - id: ok
             type: rss
             url: https://example.com/f
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
@@ -298,15 +316,19 @@ def test_excluded_entry_is_logged_as_error(
     """AC-001-7"""
     path = write_sources(
         tmp_path,
-        f"""\
+        """\
         sources:
           - id: ok
             type: rss
             url: https://example.com/f
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: broken-feed
             type: rss
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
@@ -361,12 +383,16 @@ def test_query_is_normalized_to_list_and_operator_defaults_to_and(
           - id: single
             type: {source_type}
             query: Claude Code
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
           - id: multiple
             type: {source_type}
             query: ["Claude Code", "Claude Agent SDK"]
             query_operator: or
-            {BASE}
+            category: official
+            priority: 1
+            max_items: 10
         """,
     )
 
