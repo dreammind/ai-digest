@@ -2,6 +2,14 @@
 repos:
   - repo: local
     hooks:
+      - id: no-api-keys
+        name: API キーらしい文字列が無いか
+        # Anthropic（sk-ant-...）と一般的な sk-... の長いキー。テスト用の短い偽のキーは対象外。
+        # 一致した行は表示せず（キーをログに出さないため）、ファイル名だけを出す。
+        entry: >-
+          bash -c 'if grep -IlE "sk-(ant-)?[A-Za-z0-9_-]{40,}" "$@"; then
+          echo "↑ API キーらしい文字列を含むため、コミットを止めました"; exit 1; fi' --
+        language: system
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check
