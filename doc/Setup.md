@@ -300,6 +300,7 @@ crontab -e
 30 6 * * * cd /home/<ユーザー名>/ws/ai-digest && /home/<ユーザー名>/.local/bin/uv run --frozen python -m aidigest.cli run >> /home/<ユーザー名>/ws/ai-digest/logs/cron.log 2>&1
 ```
 
+- `<ユーザー名>` は、VPS のユーザー名に読み替えてください。
 - cron の PATH は最小限なので、uv は絶対パスで呼びます。
 - `logs/cron.log` には、uv の起動の失敗など、アプリより前の段階のエラーが残ります。
 
