@@ -54,6 +54,10 @@ ENV_NAMES = [
     "SUMMARY_MAX_TOKENS",
     "TEMPLATES_DIR",
     "OUTPUT_DIR",
+    "SMTP_SECURITY",
+    "SMTP_TIMEOUT_SECONDS",
+    "SMTP_RETRIES",
+    "SMTP_RETRY_WAIT_SECONDS",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -865,6 +869,27 @@ def test_render_settings_have_defaults(tmp_path: Path) -> None:
 
     assert settings.templates_dir == Path("templates")
     assert settings.output_dir == Path("output")
+
+
+def test_mail_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-012-1"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.smtp_security == "starttls"
+    assert settings.smtp_timeout_seconds == 30
+    assert settings.smtp_retries == 1
+    assert settings.smtp_retry_wait_seconds == 10
+
+
+@pytest.mark.parametrize("value", ["none", "tls", ""])
+def test_invalid_smtp_security_raises_config_error(tmp_path: Path, value: str) -> None:
+    """AC-012-1: starttls・ssl 以外は ConfigError（空は未設定として既定値）"""
+    env = write_env(tmp_path, f"SMTP_SECURITY={value}\n")
+    if value == "":
+        assert load_settings(env).smtp_security == "starttls"
+    else:
+        with pytest.raises(ConfigError):
+            load_settings(env)
 
 
 def test_env_example_lists_all_settings_variables() -> None:
