@@ -34,7 +34,7 @@ logs/           # ログ（Git管理外）
 - 環境構築: `uv sync`
 - 依存の追加: `uv add <package>`（開発用は `uv add --dev <package>`）。`pip install` や `python -m venv` は使わない
 - 実行: `uv run python -m aidigest.cli run`
-- オプション: `--dry-run`（送信・DB更新なし）、`--no-llm`（LLM を呼ばない）
+- オプション: `--dry-run`（メールを送らず、記事の状態を残さない。LLM の費用の記録は残す。specs/013-cli.md）、`--no-llm`（LLM を呼ばない）
 - 型チェック: `uv run pyright`
 - テスト: `uv run pytest --cov --cov-fail-under=80`
 - Lint/整形: `uv run ruff check . && uv run ruff format .`
