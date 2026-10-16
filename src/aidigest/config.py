@@ -78,6 +78,8 @@ class Settings(BaseSettings):
     rerank_max_tokens: Annotated[int, Field(ge=1)] = 4000
     summary_body_chars: Annotated[int, Field(ge=1)] = 4000
     summary_max_tokens: Annotated[int, Field(ge=1)] = 4000
+    templates_dir: Path = Path("templates")
+    output_dir: Path = Path("output")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:

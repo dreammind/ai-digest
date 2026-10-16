@@ -1,0 +1,40 @@
+AI Digest {{ day }}
+{% if notices %}
+
+■ お知らせ
+{% for notice in notices %}
+- {{ notice }}
+{% endfor %}
+{% endif %}
+{% if not sections %}
+
+本日の注目記事はありません。
+{% endif %}
+{% for section in sections %}
+
+■ {{ section.heading }}
+{% for article in section.articles %}
+
+・{{ article.title }}
+{% if article.summary is not none %}
+  {{ article.summary }}
+{% if article.apply %}
+  AI活用：{{ article.apply }}
+{% endif %}
+{% else %}
+  （要約なし）
+{% endif %}
+  {{ article.source }} / {{ article.url }}
+{% endfor %}
+{% endfor %}
+
+----
+取得に失敗したソース：
+{% if failed %}
+{% for source in failed %}
+- {{ source.source_id }}：{{ source.error }}
+{% endfor %}
+{% else %}
+すべてのソースから取得できました
+{% endif %}
+LLM の費用：{{ cost }}
