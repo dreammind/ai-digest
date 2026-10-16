@@ -355,3 +355,22 @@ def test_schema_violation_log_names_the_field(
     violations = [r.getMessage() for r in caplog.records if "スキーマ違反" in r.getMessage()]
     assert violations
     assert all("novelty" in message for message in violations)
+
+
+LITERAL_NEWLINE = "\\n"  # バックスラッシュと n の 2 文字（本物の改行ではない）
+
+
+def test_literal_newlines_become_real_newlines(conn: sqlite3.Connection) -> None:
+    """AC-010-15"""
+    summary_text = f"一文目。{LITERAL_NEWLINE}{LITERAL_NEWLINE}二文目。"
+    apply_text = f"活用一。{LITERAL_NEWLINE}活用二。"
+    llm = FakeLlm([summary_reply(summary=summary_text, apply_to_claude_code=apply_text)])
+
+    (result,) = summarize_articles(conn, selected(conn, 1), llm, client(), PARAMS)
+
+    assert result.summary is not None
+    assert result.summary.summary.splitlines() == ["一文目。", "", "二文目。"]
+    assert result.summary.apply_to_claude_code == "活用一。\n活用二。"
+    stored, _, _ = row(conn, result)
+    assert isinstance(stored, str)
+    assert json.loads(stored)["summary"] == "一文目。\n\n二文目。"
