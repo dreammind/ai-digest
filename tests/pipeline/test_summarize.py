@@ -241,7 +241,6 @@ INVALID = {
     "novelty-6": summary_reply(novelty=6),
     "empty-tldr": summary_reply(tldr=""),
     "empty-takeaways": summary_reply(key_takeaways=[]),
-    "six-takeaways": summary_reply(key_takeaways=["a"] * 6),
     "max-tokens": tool_reply("submit_summary", VALID_SUMMARY, "max_tokens"),
     "refusal": text_reply("", "refusal"),
 }
@@ -323,3 +322,35 @@ def test_empty_input(conn: sqlite3.Connection) -> None:
 
     assert summarize_articles(conn, [], llm, client(), PARAMS) == []
     assert llm.calls == []
+
+
+def test_long_lists_are_truncated(conn: sqlite3.Connection) -> None:
+    """AC-010-13"""
+    llm = FakeLlm(
+        [
+            summary_reply(
+                key_takeaways=[f"要点{i}" for i in range(7)], topics=[f"t{i}" for i in range(6)]
+            )
+        ]
+    )
+
+    (result,) = summarize_articles(conn, selected(conn, 1), llm, client(), PARAMS)
+
+    assert len(llm.calls) == 1
+    assert result.summary is not None
+    assert result.summary.key_takeaways == [f"要点{i}" for i in range(5)]
+    assert result.summary.topics == [f"t{i}" for i in range(5)]
+
+
+def test_schema_violation_log_names_the_field(
+    conn: sqlite3.Connection, caplog: pytest.LogCaptureFixture
+) -> None:
+    """AC-010-14"""
+    llm = FakeLlm([summary_reply(novelty=6), summary_reply(novelty=6)])
+
+    with caplog.at_level(logging.WARNING, logger="aidigest.pipeline.summarize"):
+        summarize_articles(conn, selected(conn, 1), llm, client(), PARAMS)
+
+    violations = [r.getMessage() for r in caplog.records if "スキーマ違反" in r.getMessage()]
+    assert violations
+    assert all("novelty" in message for message in violations)

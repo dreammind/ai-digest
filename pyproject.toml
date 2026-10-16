@@ -37,7 +37,7 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ANN", "SIM", "RUF", "PT"]
 # 日本語のコメント・docstring で使う全角記号は紛らわしい文字として扱わない
-allowed-confusables = ["（", "）", "：", "，", "＋", "－", "／"]
+allowed-confusables = ["（", "）", "：", "，", "＋", "－", "／", "！", "？"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["aidigest", "tests"]
@@ -51,6 +51,7 @@ venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # tests パッケージ（tests.fetchers.helpers など）を、どのファイル単体で実行しても import できるように
 addopts = "--cov=aidigest --cov-report=term-missing"
 
 [tool.coverage.run]

@@ -242,3 +242,21 @@ def test_each_section_heading(section: Section) -> None:
     }
 
     assert headings[section] in render([article(section)]).text
+
+
+def test_sentences_and_paragraphs() -> None:
+    """AC-011-13"""
+    text = "一文目。二文目（補足。）三文目！\n\n四文目？"
+    item = article("llm", summary_=summary(summary=text, apply_to_claude_code=text))
+
+    digest = render([item])
+
+    paragraphs = [
+        re.sub(r"\s+", "", p)
+        for p in re.findall(r"<p[^>]*>(.*?)</p>", digest.html, flags=re.DOTALL)
+    ]
+    assert paragraphs.count("一文目。<br>二文目（補足。）<br>三文目！") == 2, "要約と AI活用"
+    assert paragraphs.count("四文目？") == 2, "要約と AI活用"
+    lines = [line.strip() for line in digest.text.splitlines()]
+    for sentence in ["一文目。", "二文目（補足。）", "三文目！", "四文目？"]:
+        assert lines.count(sentence) == 2, sentence
