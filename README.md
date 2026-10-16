@@ -15,6 +15,7 @@ Zenn・Qiita・Hacker News・Simon Willison のブログから記事を取得し
 | [SPEC.md](SPEC.md) | 全体の仕様 |
 | [specs/](specs/) | 機能ごとの詳細な仕様と受け入れ基準（書き方は [specs/README.md](specs/README.md)） |
 | [doc/BugHistory.md](doc/BugHistory.md) | バグ修正記録（症状・原因・修正内容） |
+| [doc/Retrospective.md](doc/Retrospective.md) | 振り返りの記録（うまくいったこと、問題と対策、決めたこと） |
 | [CLAUDE.md](CLAUDE.md) | 開発のルール（仕様駆動・テスト駆動、型、秘密情報の扱い、コミットの仕方） |
 
 ## すぐに使うコマンド
