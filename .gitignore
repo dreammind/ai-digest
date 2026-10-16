@@ -226,3 +226,11 @@ data/
 *.db
 *.sqlite3
 .claude/settings.local.json
+
+# エディタの一時ファイル（.env のスワップファイルなど、秘密情報を含みうる）
+*.swp
+*.swo
+*~
+# .env の派生ファイル（.env.local、.env.bak など）。見本の .env.example だけは管理する
+.env.*
+!.env.example
