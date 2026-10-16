@@ -450,3 +450,21 @@ def test_usage_error(argv: list[str]) -> None:
         main(argv)
 
     assert exc_info.value.code == 2
+
+
+def test_dry_run_failure_sends_no_notification(env: Env) -> None:
+    """AC-013-8 / AC-013-10: --dry-run で失敗しても失敗通知メールは送らない"""
+    env.values["TEMPLATES_DIR"] = env.tmp / "no-templates"
+
+    code = env.run(dry_run=True)
+
+    assert code == 1
+    assert env.mailer.sent == []
+    assert len(env.rows("SELECT * FROM llm_calls")) == 4
+
+
+def test_main_with_invalid_env_file(tmp_path: Path) -> None:
+    """AC-013-15 の補足: .env の値が不正なら、外部にアクセスせず終了コード 1"""
+    (tmp_path / ".env").write_text("SMTP_PORT=not-a-number\n", encoding="utf-8")
+
+    assert main(["run", "--dry-run"]) == 1
