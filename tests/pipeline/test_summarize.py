@@ -242,6 +242,7 @@ INVALID = {
     "empty-tldr": summary_reply(tldr=""),
     "empty-takeaways": summary_reply(key_takeaways=[]),
     "takeaways-not-list": summary_reply(key_takeaways="要点"),
+    "summary-not-string": summary_reply(summary=123),
     "max-tokens": tool_reply("submit_summary", VALID_SUMMARY, "max_tokens"),
     "refusal": text_reply("", "refusal"),
 }
