@@ -58,6 +58,9 @@ ENV_NAMES = [
     "SMTP_TIMEOUT_SECONDS",
     "SMTP_RETRIES",
     "SMTP_RETRY_WAIT_SECONDS",
+    "LOG_DIR",
+    "LOG_BACKUP_DAYS",
+    "LOCK_PATH",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -890,6 +893,15 @@ def test_invalid_smtp_security_raises_config_error(tmp_path: Path, value: str) -
     else:
         with pytest.raises(ConfigError):
             load_settings(env)
+
+
+def test_cli_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-013-1"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.log_dir == Path("logs")
+    assert settings.log_backup_days == 30
+    assert settings.lock_path == Path("data/aidigest.lock")
 
 
 def test_env_example_lists_all_settings_variables() -> None:
