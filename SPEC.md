@@ -192,7 +192,7 @@ CLAUDE.md の指示だけでは強制力が弱いため、機械的なチェッ�
 - `pre-commit`（ruff、pyright、pytest）で、チェックに失敗するコミットを拒否する
 - Claude Code の hooks（`.claude/settings.json`）:
   - ファイル編集後に ruff と pyright を自動実行する
-  - 作業終了時（Stop）に pytest を実行し、失敗していれば差し戻す
+  - 作業終了時（Stop）に pytest を実行し、`src/` に未コミットの変更があって失敗していれば差し戻す（テストだけを書いた Red の段階では差し戻さない）
 - コミットは、機能の実装が終わりテストがすべて通った段階で、テストと実装をまとめて行う（Red の段階ではコミットしない）。Refactor は `refactor:` として別にコミットしてよい
 - 任意: `src/` に新しいモジュールを作る際、対応する `tests/` のファイルがなければ警告する hook
 
