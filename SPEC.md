@@ -193,7 +193,7 @@ CLAUDE.md の指示だけでは強制力が弱いため、機械的なチェッ�
 - Claude Code の hooks（`.claude/settings.json`）:
   - ファイル編集後に ruff と pyright を自動実行する
   - 作業終了時（Stop）に pytest を実行し、失敗していれば差し戻す
-- コミットは `test:`（Red）→ `feat:`（Green）→ `refactor:` の順に分ける
+- コミットは、機能の実装が終わりテストがすべて通った段階で、テストと実装をまとめて行う（Red の段階ではコミットしない）。Refactor は `refactor:` として別にコミットしてよい
 - 任意: `src/` に新しいモジュールを作る際、対応する `tests/` のファイルがなければ警告する hook
 
 ## 12. フェーズ計画
