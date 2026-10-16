@@ -40,6 +40,19 @@ def _first_items(value: object) -> object:
     return value
 
 
+def _real_newlines(value: object) -> object:
+    """文字としての \\n（バックスラッシュと n）を本物の改行にする。
+
+    段落を分けるよう指示すると、モデルが改行の代わりに文字としての \\n を書くことがあるため。
+    """
+    if isinstance(value, str):
+        return value.replace("\\n", "\n")
+    return value
+
+
+ParagraphText = Annotated[str, BeforeValidator(_real_newlines)]
+
+
 class Summary(BaseModel):
     """要約のスキーマ（SPEC.md §6、specs/010）。"""
 
@@ -48,10 +61,10 @@ class Summary(BaseModel):
     key_takeaways: Annotated[
         list[NonEmptyStr], BeforeValidator(_first_items), Field(min_length=1, max_length=5)
     ]
-    summary: NonEmptyStr
+    summary: Annotated[NonEmptyStr, BeforeValidator(_real_newlines)]
     topics: Annotated[list[str], BeforeValidator(_first_items), Field(max_length=5)]
     novelty: Annotated[int, Field(ge=1, le=5)]
-    apply_to_claude_code: str
+    apply_to_claude_code: ParagraphText
 
 
 def _string(description: str) -> dict[str, object]:
