@@ -80,6 +80,10 @@ class Settings(BaseSettings):
     summary_max_tokens: Annotated[int, Field(ge=1)] = 4000
     templates_dir: Path = Path("templates")
     output_dir: Path = Path("output")
+    smtp_security: Literal["starttls", "ssl"] = "starttls"
+    smtp_timeout_seconds: Annotated[float, Field(gt=0)] = 30
+    smtp_retries: Annotated[int, Field(ge=0)] = 1
+    smtp_retry_wait_seconds: Annotated[float, Field(ge=0)] = 10
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
