@@ -112,6 +112,9 @@ cp .env.example .env            # 設定ファイルを作り、5 章のとお�
 - `src/aidigest/` にモジュールを作ったとき：対応するテストが無ければ警告する
 - 作業を終えるとき：pytest を実行し、`src/` に未コミットの変更があって失敗していれば差し戻す（テストだけを書いた TDD の Red の段階では差し戻さない）
 
+同じファイルの `permissions.deny` で、Claude Code が `.env`（と vim の一時ファイル `.env.swp`）を読む・編集する操作を禁止しています（`cat .env` などの代表的なコマンドも含む）。`.env.example` は読めます。
+シェルのコマンドの書き方はいくらでもあるので完全な防御ではありません。秘密情報をチャットに貼らない、という運用と合わせて使います。
+
 ---
 
 ## 5. 設定
@@ -342,5 +345,7 @@ crontab -e
 - `.env`、`.env.*`（`.env.example` を除く）、エディタの一時ファイル（vim の `.swp` など）は Git の管理外にしてある。
 - コミットするときは、`git add -A` / `git add .` を使わず、ファイル名を指定して追加する（未追跡の無関係なファイルを巻き込まないため）。
 - pre-commit が、API キーらしい文字列を含むコミットを止める。
+- Claude Code には `.env` を読ませない（`.claude/settings.json` の `permissions.deny`。4 章）。
+- GitHub への push・VPS への反映・メールの送信・cron の登録は、Claude Code に任せる場合も実行前に確認する（CLAUDE.md）。
 - VPS の `.env` は権限を `600`（所有者だけが読み書きできる）にする。
 - API キーやアプリパスワードが漏れたら、すぐに失効させて作り直す（Anthropic Console の API Keys、Google のアプリパスワードの画面）。
