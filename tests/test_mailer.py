@@ -61,6 +61,7 @@ class FakeSmtp:
     def starttls(self, *, context: ssl.SSLContext) -> tuple[int, bytes]:
         self.server.log.append("starttls")
         self.server.contexts.append(context)
+        self.server.step("starttls")
         return (220, b"ready")
 
     def login(self, user: str, password: str) -> tuple[int, bytes]:
@@ -225,8 +226,9 @@ def test_transient_error_is_retried(tmp_path: Path, error: tuple[str, Exception]
         ("login", smtplib.SMTPAuthenticationError(535, b"Username and Password not accepted")),
         ("send", smtplib.SMTPResponseException(550, b"mailbox unavailable")),
         ("send", smtplib.SMTPRecipientsRefused({"a@example.com": (550, b"no such user")})),
+        ("starttls", smtplib.SMTPNotSupportedError("STARTTLS extension not supported")),
     ],
-    ids=["auth-535", "550", "all-refused"],
+    ids=["auth-535", "550", "all-refused", "no-starttls"],
 )
 def test_permanent_error_is_not_retried(tmp_path: Path, error: tuple[str, Exception]) -> None:
     """AC-012-7"""
