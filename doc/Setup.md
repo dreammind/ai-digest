@@ -260,7 +260,9 @@ uv run ruff format .        # 書式を整える
 
 ## 8. VPS への配置と cron の登録
 
-本番は、さくらの VPS（Ubuntu 22.04、タイムゾーン Asia/Tokyo）で動かします。詳しい手順と記録は [specs/014-deploy.md](../specs/014-deploy.md) にあります。
+本番は、さくらの VPS（Ubuntu 22.04、タイムゾーン Asia/Tokyo）で動かします。
+
+この章のコマンドの `my-vps` は、`~/.ssh/config` に登録した VPS のホスト名に読み替えてください。詳しい手順と記録は [specs/014-deploy.md](../specs/014-deploy.md) にあります。
 
 ### 8.1 初めて配置するとき
 
