@@ -18,7 +18,7 @@ from aidigest.config import Settings
 from aidigest.llm import BudgetExceeded, LlmCaller, LlmError
 from aidigest.pipeline.scoring import ScoredArticle
 from aidigest.pipeline.text import content_excerpt
-from aidigest.pipeline.tool_response import single_tool_input
+from aidigest.pipeline.tool_response import describe_validation_error, single_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,7 @@ def _parse(response: Message, count: int) -> tuple[dict[int, float] | None, str]
     try:
         submission = _Submission.model_validate(tool_input)
     except ValidationError as e:
-        return None, f"スキーマ違反: {e.error_count()} 件"
+        return None, f"スキーマ違反: {describe_validation_error(e)}"
     ids = [s.id for s in submission.scores]
     if sorted(ids) != list(range(1, count + 1)):
         return None, f"記事の番号が一致しない: {sorted(ids)}"

@@ -17,9 +17,21 @@ AI Digest {{ day }}
 
 ・{{ article.title }}
 {% if article.summary is not none %}
-  {{ article.summary }}
+{% for paragraph in article.summary %}
+{% if not loop.first %}
+
+{% endif %}
+{% for sentence in paragraph %}
+  {{ sentence }}
+{% endfor %}
+{% endfor %}
 {% if article.apply %}
-  AI活用：{{ article.apply }}
+  AI活用：
+{% for paragraph in article.apply %}
+{% for sentence in paragraph %}
+    {{ sentence }}
+{% endfor %}
+{% endfor %}
 {% endif %}
 {% else %}
   （要約なし）

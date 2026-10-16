@@ -27,9 +27,16 @@
   <div style="margin:0 0 20px;">
     <a href="{{ article.url }}" style="font-size:15px; font-weight:bold; color:#0b57d0; text-decoration:none;">{{ article.title }}</a>
 {% if article.summary is not none %}
-    <p style="margin:6px 0;">{{ article.summary }}</p>
+{% for paragraph in article.summary %}
+    <p style="margin:6px 0;">{% for sentence in paragraph %}{{ sentence }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+{% endfor %}
 {% if article.apply %}
-    <p style="margin:6px 0; padding:8px 12px; background:#f1f8f4; border-radius:4px;"><strong>AI活用</strong>：{{ article.apply }}</p>
+    <div style="margin:8px 0; padding:8px 12px; background:#f1f8f4; border-radius:4px;">
+      <strong>AI活用</strong>
+{% for paragraph in article.apply %}
+      <p style="margin:4px 0 0;">{% for sentence in paragraph %}{{ sentence }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+{% endfor %}
+    </div>
 {% endif %}
 {% else %}
     <p style="margin:6px 0; color:#6e7781;">要約なし</p>

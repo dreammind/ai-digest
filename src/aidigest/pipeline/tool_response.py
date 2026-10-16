@@ -1,6 +1,7 @@
 """tool use で出力を受け取る LLM 呼び出しの、応答の共通の検証（specs/008、010）。"""
 
 from anthropic.types import Message
+from pydantic import ValidationError
 
 
 def single_tool_input(response: Message, tool_name: str) -> tuple[object | None, str]:
@@ -15,3 +16,11 @@ def single_tool_input(response: Message, tool_name: str) -> tuple[object | None,
     if len(calls) != 1:
         return None, f"{tool_name} の呼び出しが {len(calls)} 回"
     return calls[0].input, ""
+
+
+def describe_validation_error(error: ValidationError) -> str:
+    """どの項目がどう違反したかを返す。入力の値は含めない（ログに出すため）。"""
+    return "; ".join(
+        f"{'.'.join(str(loc) for loc in detail['loc'])}: {detail['msg']}"
+        for detail in error.errors(include_input=False, include_url=False)
+    )

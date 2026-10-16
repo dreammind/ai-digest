@@ -11,18 +11,18 @@ import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
 from importlib import resources
-from typing import Annotated, Self
+from typing import Annotated, Self, cast
 
 import trafilatura
 from anthropic.types import TextBlockParam, ToolParam
-from pydantic import BaseModel, Field, StringConstraints, ValidationError
+from pydantic import BaseModel, BeforeValidator, Field, StringConstraints, ValidationError
 
 from aidigest.config import Settings
 from aidigest.fetchers.http import FetchError, HttpClient
 from aidigest.llm import BudgetExceeded, LlmCaller, LlmError
 from aidigest.pipeline.allocation import SelectedArticle
 from aidigest.pipeline.text import strip_tags
-from aidigest.pipeline.tool_response import single_tool_input
+from aidigest.pipeline.tool_response import describe_validation_error, single_tool_input
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,14 @@ TOOL_NAME = "submit_summary"
 ATTEMPTS = 2  # 最初の 1 回 + 不正な応答のときの再試行 1 回
 
 NonEmptyStr = Annotated[str, StringConstraints(min_length=1)]
+MAX_LIST_ITEMS = 5  # key_takeaways と topics の最大件数
+
+
+def _first_items(value: object) -> object:
+    """リストが長すぎたら先頭の MAX_LIST_ITEMS 件にする（件数だけで要約を捨てないため）。"""
+    if isinstance(value, list):
+        return cast(list[object], value)[:MAX_LIST_ITEMS]
+    return value
 
 
 class Summary(BaseModel):
@@ -37,9 +45,11 @@ class Summary(BaseModel):
 
     title_ja: NonEmptyStr
     tldr: NonEmptyStr
-    key_takeaways: Annotated[list[NonEmptyStr], Field(min_length=1, max_length=5)]
+    key_takeaways: Annotated[
+        list[NonEmptyStr], BeforeValidator(_first_items), Field(min_length=1, max_length=5)
+    ]
     summary: NonEmptyStr
-    topics: Annotated[list[str], Field(max_length=5)]
+    topics: Annotated[list[str], BeforeValidator(_first_items), Field(max_length=5)]
     novelty: Annotated[int, Field(ge=1, le=5)]
     apply_to_claude_code: str
 
@@ -157,7 +167,7 @@ def _summarize_one(
             try:
                 return Summary.model_validate(tool_input)
             except ValidationError as e:
-                problem = f"スキーマ違反: {e.error_count()} 件"
+                problem = f"スキーマ違反: {describe_validation_error(e)}"
         logger.warning("要約の応答が不正です（%d 回目、%s）: %s", attempt, _url(article), problem)
     logger.warning("要約の応答が %d 回とも不正なため要約しません（%s）", ATTEMPTS, _url(article))
     return None

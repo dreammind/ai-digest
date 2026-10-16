@@ -4,6 +4,7 @@
 外部から来た文字列（タイトル・要約・エラー）は、HTML では jinja2 の自動エスケープでエスケープする。
 """
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -24,6 +25,9 @@ HEADINGS: dict[Section, str] = {
 }
 ERROR_CHARS = 200  # フッターに出すエラーの内容の最大文字数
 
+# 1 文：文末の記号（。！？!?）まで。直後の閉じかっこも同じ文に含める
+_SENTENCE = re.compile(r"[^。！？!?]+(?:[。！？!?]+[」』）)】]*)?|[。！？!?]+[」』）)】]*")
+
 
 @dataclass(frozen=True)
 class RenderedDigest:
@@ -37,8 +41,8 @@ class _ArticleView:
     title: str
     url: str
     source: str
-    summary: str | None  # None なら「要約なし」
-    apply: str
+    summary: list[list[str]] | None  # 段落 → 文。None なら「要約なし」
+    apply: list[list[str]]  # 空なら AI活用 は出さない
 
 
 @dataclass(frozen=True)
@@ -102,9 +106,20 @@ def _view(article: SummarizedArticle) -> _ArticleView:
         title=summary.title_ja if summary is not None else new.item.title,
         url=new.url,
         source=new.item.source_id,
-        summary=summary.summary if summary is not None else None,
-        apply=summary.apply_to_claude_code if summary is not None else "",
+        summary=split_paragraphs(summary.summary) if summary is not None else None,
+        apply=split_paragraphs(summary.apply_to_claude_code) if summary is not None else [],
     )
+
+
+def split_paragraphs(text: str) -> list[list[str]]:
+    """改行で段落に分け、各段落を文に分ける（空の段落・空の文は除く）。"""
+    paragraphs: list[list[str]] = []
+    for line in text.splitlines():
+        sentences = [m.group().strip() for m in _SENTENCE.finditer(line)]
+        sentences = [s for s in sentences if s]
+        if sentences:
+            paragraphs.append(sentences)
+    return paragraphs
 
 
 def _environment(templates_dir: Path, *, autoescape: bool) -> Environment:
