@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     smtp_timeout_seconds: Annotated[float, Field(gt=0)] = 30
     smtp_retries: Annotated[int, Field(ge=0)] = 1
     smtp_retry_wait_seconds: Annotated[float, Field(ge=0)] = 10
+    log_dir: Path = Path("logs")
+    log_backup_days: Annotated[int, Field(ge=1)] = 30
+    lock_path: Path = Path("data/aidigest.lock")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
