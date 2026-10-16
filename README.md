@@ -14,6 +14,7 @@ Zenn・Qiita・Hacker News・Simon Willison のブログから記事を取得し
 | [doc/Setup.md](doc/Setup.md) | 環境設定ガイド（設定項目、実行方法、VPS への配置、運用、困ったとき） |
 | [SPEC.md](SPEC.md) | 全体の仕様 |
 | [specs/](specs/) | 機能ごとの詳細な仕様と受け入れ基準（書き方は [specs/README.md](specs/README.md)） |
+| [doc/BugHistory.md](doc/BugHistory.md) | バグ修正記録（症状・原因・修正内容） |
 | [CLAUDE.md](CLAUDE.md) | 開発のルール（仕様駆動・テスト駆動、型、秘密情報の扱い、コミットの仕方） |
 
 ## すぐに使うコマンド
