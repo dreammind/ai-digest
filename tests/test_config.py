@@ -52,6 +52,8 @@ ENV_NAMES = [
     "RERANK_MAX_TOKENS",
     "SUMMARY_BODY_CHARS",
     "SUMMARY_MAX_TOKENS",
+    "TEMPLATES_DIR",
+    "OUTPUT_DIR",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -855,6 +857,14 @@ def test_invalid_rerank_settings_raise_config_error(tmp_path: Path, line: str) -
     """AC-008-1: 表の制約を満たさなければ ConfigError"""
     with pytest.raises(ConfigError):
         load_settings(write_env(tmp_path, line + "\n"))
+
+
+def test_render_settings_have_defaults(tmp_path: Path) -> None:
+    """AC-011-1"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.templates_dir == Path("templates")
+    assert settings.output_dir == Path("output")
 
 
 def test_env_example_lists_all_settings_variables() -> None:
