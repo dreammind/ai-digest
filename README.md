@@ -60,6 +60,8 @@ uv run pyright && uv run ruff check . && uv run pytest   # 変更後の確認
 | 要点（`key_takeaways`）に空の文字列が混ざっていたら、不正とせずに取り除く | VPS での dry-run で 1 回、これが原因の再試行が起きた |
 | 要約の応答のスキーマ違反のログに、違反した項目名を出す（値は出さない） | 2026-10-16 の手元の実行で Qiita の記事 1 件が 2 回続けて違反したが、ログが「スキーマ違反: 1 件」だけで原因が分からなかった（CLAUDE.md の完了の定義にも合っていない） |
 | `logs/cron.log` にアプリのログが重複して残らないようにする（アプリより前の段階のエラーだけにする） | 2026-10-17 の VPS で、`cron.log` と `aidigest.log` の中身がほぼ同じだった。アプリのログがエラー出力にも出ている |
+| CI（GitHub Actions で pyright・ruff・pytest を push と PR ごとに実行する） | 検査が手元の pre-commit だけで、GitHub 側で main が壊れていないかを確かめられない。Dependabot の PR も手元で検査する必要がある（[Setup.md](doc/Setup.md) 11 章） |
+| Dependabot version updates（`.github/dependabot.yml`。月 1 回、まとめて 1 つの PR。uv と GitHub Actions） | 依存の更新が手作業。CI ができてから入れる（CI が無いと、更新の PR の検査が手作業になる） |
 | 「その他」の枠が埋まらない日がある（7 件しか選ばれない） | 上位 30 件がすべて Claude Code か LLM のテーマに当てはまる。上限の合計や枠の融通を検討する |
 | 記事の選ばれ方・要約の長さの調整 | 要約は指示の「2〜3 文」より長い 4〜7 文になる。数日分の配信を見て判断する |
 | ソース名を `zenn-claudecode` などの id ではなく、読みやすい表示名にする | `sources.yaml` に表示名の項目が無い（[011](specs/011-render.md) の決定事項） |
