@@ -28,10 +28,11 @@
 ### 決めたこと
 - リポジトリを公開した。今後の push はすぐ公開される前提で扱う。
 - 秘密情報の検査は、手元（pre-commit）と GitHub（Push protection）の二重にする。
+- Dependabot（alerts・Malware alerts・security updates）を有効にし、main の削除と強制 push を Rulesets で禁止した。Actions の権限は読み取りのみ。
 
 ### 反映した先
 - `README.md`: 改善の候補（スキーマ違反の項目名、`cron.log` の重複）
-- `doc/Setup.md`: セキュリティの注意（公開、Secret Protection と Push protection）
+- `doc/Setup.md`: セキュリティの注意（公開、Secret Protection と Push protection、Dependabot、Rulesets、Actions の権限、Dependabot の PR の扱い）
 - `share/NEW_PROJECT_CHECKLIST.md`: 公開前の履歴の検査、公開後の Secret Protection
 - Claude のメモリ: VPS の接続先
 

@@ -347,6 +347,17 @@ crontab -e
 - pre-commit が、API キーらしい文字列を含むコミットを止める。
 - **GitHub のリポジトリは公開（public）にしている**（2026-10-17 から）。push した内容は、すぐに誰でも見られる。
 - GitHub 側でも、Secret Protection と Push protection を有効にしている（Settings → Advanced Security）。秘密情報らしい文字列を含む push は GitHub が止める。pre-commit をすり抜けたときの二重の守り。
+- GitHub のそのほかの設定（2026-10-17）:
+
+  | 設定の場所 | 内容 |
+  |---|---|
+  | Advanced Security → Dependabot | alerts・Malware alerts・security updates・Grouped security updates を On。version updates（`dependabot.yml`）は未設定 |
+  | Rules → Rulesets | `protect-main`：既定のブランチ（main）の削除と強制 push を禁止。Bypass list は空。PR は必須にしない（main に直接 push する運用のため） |
+  | Actions → General | Workflow permissions は読み取りのみ。Actions による PR の作成・承認は不可 |
+  | General → Features | Wiki・Projects・Discussions・Sponsorships は Off。Issues・Pull requests は On（Dependabot の PR のため） |
+
+- Dependabot の PR は、CI が無いので、マージ前に手元でブランチを取り込み、`uv run pyright && uv run ruff check . && uv run pytest` を通す。GitHub でマージしたら、手元で `git pull` してから作業し、VPS は 9 章の手順で反映する。
+- 履歴の書き換えがどうしても必要なときは、Rulesets の `protect-main` を一時的に Disabled にし、強制 push のあとすぐに Active に戻す（強制 push は実行前に確認する）。
 - 公開する前の履歴の書き換え（強制 push）より前のコミットは、GitHub に残っている場合がある。秘密情報を履歴から消しても見られる前提で、**失効を先に行う**。
 - Claude Code には `.env` を読ませない（`.claude/settings.json` の `permissions.deny`。4 章）。
 - GitHub への push・VPS への反映・メールの送信・cron の登録は、Claude Code に任せる場合も実行前に確認する（CLAUDE.md）。

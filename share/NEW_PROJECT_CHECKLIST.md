@@ -122,6 +122,7 @@
 - [ ] 文書にホスト名・ユーザー名・個人のパスを書かず、仮の名前（`my-vps`、`<ユーザー名>` など）にした（あとから消すと、履歴の書き換えが必要になる）
 - [ ] リポジトリを公開するときは、その前に全ブランチの履歴を検査した（キーの形の文字列、`.env` などのファイル、パスワードの値、ホスト名・IP）。コミットの作成者のメールアドレスも公開されることを確かめた。強制 push より前のコミットは GitHub に残っている場合があることも承知した
 - [ ] 公開したら、GitHub の Secret Protection と Push protection を有効にした（公開リポジトリは無料）
+- [ ] GitHub の Dependabot（alerts・Malware alerts・security updates）を有効にし、Rulesets で main の削除と強制 push を禁止し、Actions の Workflow permissions を読み取りのみにした
 
 ## Phase 10. 運用しながら振り返る
 - [ ] 未決事項を消化した
