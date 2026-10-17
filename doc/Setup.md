@@ -345,6 +345,9 @@ crontab -e
 - `.env`、`.env.*`（`.env.example` を除く）、エディタの一時ファイル（vim の `.swp` など）は Git の管理外にしてある。
 - コミットするときは、`git add -A` / `git add .` を使わず、ファイル名を指定して追加する（未追跡の無関係なファイルを巻き込まないため）。
 - pre-commit が、API キーらしい文字列を含むコミットを止める。
+- **GitHub のリポジトリは公開（public）にしている**（2026-10-17 から）。push した内容は、すぐに誰でも見られる。
+- GitHub 側でも、Secret Protection と Push protection を有効にしている（Settings → Advanced Security）。秘密情報らしい文字列を含む push は GitHub が止める。pre-commit をすり抜けたときの二重の守り。
+- 公開する前の履歴の書き換え（強制 push）より前のコミットは、GitHub に残っている場合がある。秘密情報を履歴から消しても見られる前提で、**失効を先に行う**。
 - Claude Code には `.env` を読ませない（`.claude/settings.json` の `permissions.deny`。4 章）。
 - GitHub への push・VPS への反映・メールの送信・cron の登録は、Claude Code に任せる場合も実行前に確認する（CLAUDE.md）。
 - VPS の `.env` は権限を `600`（所有者だけが読み書きできる）にする。
