@@ -59,6 +59,7 @@ MVP で使わないことにしたソースと理由:
 - Anthropic の News / Engineering（第三者が生成するフィード）：内容を確認したが、関心と合う記事が少なかった
 - Qiita のタグ RSS：どのタグでも最新 4 件程度しか返らないため、API に置き換えた
 - Zenn の `gemini` / `openai` / `mcp` トピック、Qiita の `Gemini` / `OpenAI` / `MCP` / `生成AI` タグ：ハッカソン作品や関係の薄い連載が多い、件数が少ない、ほかのタグと重なる
+- note（2026-10-18〜19 に調査）：ハッシュタグの RSS は新しい順の 25 件だけで、`ClaudeCode` タグは約 1 時間分しか取れない。いいね（スキ）数も含まれず、質で絞れない。人気順に取れるのは非公式 API だけだが、robots.txt で `/api/*` が禁止されている。書き手を指定する RSS は使えるが、松尾研（`matsuolab`）は講座の案内が中心で、人気順の記事も関心と合う水準ではなかった
 - OpenAI / Google DeepMind などの公式ブログ、arXiv：Phase 2 以降で検討する
 
 ### Zenn の取得方法
