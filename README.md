@@ -6,6 +6,7 @@ Zenn・Qiita・Hacker News・Simon Willison のブログから記事を取得し
 - 本番：さくらの VPS で、cron により毎朝 6:30（日本時間）に実行
 - 費用：LLM は 1 日あたり約 1.3 円（1 か月 約 40 円）。予算ガードつき
 - 状態：Phase 1（MVP）の実装と VPS への反映が完了（2026-10-16）
+- 準備中：友人の AI の LINE グループに紹介するための、一般向けの AI の時事ネタの配信（プロファイル `current-events`。[SPEC.md](SPEC.md) §1）
 
 ## 文書
 
