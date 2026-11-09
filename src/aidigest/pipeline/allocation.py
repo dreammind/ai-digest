@@ -75,3 +75,19 @@ def allocate(
     )
     # 入力は final_score の高い順なので、安定ソートでセクションの中もスコアの順になる
     return sorted(chosen, key=lambda c: SECTION_ORDER.index(c.section))
+
+
+def allocate_top(
+    conn: sqlite3.Connection, ranked: Sequence[RankedArticle], size: int
+) -> list[SelectedArticle]:
+    """current-events の枠配分（specs/016）。セクションと上限を使わず、スコアの順に `size` 件。
+
+    セクションは使わないので、すべて `other` にする。
+    """
+    chosen = [SelectedArticle(article, "other") for article in ranked[:size]]
+    conn.executemany(
+        "UPDATE articles SET status = 'selected' WHERE id = ?",
+        [(c.ranked.scored.article.id,) for c in chosen],
+    )
+    logger.info("枠配分: selected=%d（上限なし、size=%d）", len(chosen), size)
+    return chosen

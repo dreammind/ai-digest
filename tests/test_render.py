@@ -46,7 +46,7 @@ def article(
     summary_: Summary | None = None,
     *,
     source_id: str = "zenn-claudecode",
-) -> SummarizedArticle:
+) -> SummarizedArticle[Summary]:
     n = next(_ids)
     url = f"https://example.com/{n}"
     item = FetchedItem(
@@ -57,7 +57,7 @@ def article(
 
 
 def render(
-    articles: Sequence[SummarizedArticle],
+    articles: Sequence[SummarizedArticle[Summary]],
     *,
     health: Sequence[SourceHealth] = ALL_OK,
     spent: Spent = NO_COST,

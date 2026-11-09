@@ -1,0 +1,48 @@
+# current-events プロファイルのテーマ別の重みとキーワード、採点のパラメータ（SPEC.md §3、specs/016）
+# 照合は全角・半角と大文字・小文字を同一視した部分一致。
+# 英語の記事で別の語の一部に当たる短い英字の語（API・law・Meta など）は入れない。
+# 初期値は暫定。数日分の配信を見て調整する。
+
+scoring:
+  priority_bonus: {1: 2.0, 2: 1.0, 3: 0.0}
+  high_points: 2.0
+  medium_points: 1.0
+  negative_points: 3.0
+  highlight_points: 1.0
+  content_factor: 0.25
+  max_hits: 3
+  min_score: 1.0
+  similarity_threshold: 0.45
+  ngram: 2
+
+topics:
+  # 時事: 身近な AI の新機能や発表、AI と社会の大きな動き
+  - id: news
+    weight: 2.0
+    high: [ChatGPT, Gemini, Claude, Copilot, Siri, Alexa, OpenAI, Anthropic, 新機能, 発表, launch, announce]
+    medium: [Google, Apple, Microsoft, 規制, 法律, regulation]
+
+  # 注意点: 詐欺、偽の画像・動画、個人情報やプライバシー、著作権
+  - id: caution
+    weight: 2.0
+    high: [詐欺, フィッシング, ディープフェイク, deepfake, なりすまし, scam, 著作権, copyright]
+    medium: [個人情報, プライバシー, privacy, 漏えい, 偽, fake, 安全, safety]
+
+  # すぐ試せる使い方: 身近なアプリの AI の機能、暮らしでの使い方、体験記
+  - id: howto
+    weight: 1.5
+    high: [使い方, 使ってみた, 試してみた, how to, I used, I tried]
+    medium: [活用, 便利, 機能を追加, tips, guide]
+
+  # 話題・面白ネタ: AI を使った研究の成果、話題の製品やサービス
+  - id: fun
+    weight: 1.0
+    high: [話題, 発見, 証明, ロボット, robot]
+    medium: [研究, research, 画像生成, 動画生成, 会話]
+
+# 全テーマ共通の減点（開発者向け、企業のお金や人事の話、宣伝）
+negative: [開発者向け, developer, SDK, ベンチマーク, benchmark, 論文, 資金調達, IPO, 株価, 決算, 売上, revenue, 求人, hiring, スポンサー, sponsored]
+
+# 配信する件数（セクションと上限は無い）
+digest:
+  size: 10

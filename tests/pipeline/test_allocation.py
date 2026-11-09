@@ -12,7 +12,7 @@ from pydantic import TypeAdapter
 from aidigest.config import DigestConfig, Source
 from aidigest.db import open_db
 from aidigest.models import FetchedItem
-from aidigest.pipeline.allocation import SelectedArticle, allocate, section_of
+from aidigest.pipeline.allocation import SelectedArticle, allocate, allocate_top, section_of
 from aidigest.pipeline.dedupe import register_items
 from aidigest.pipeline.rerank import RankedArticle
 from aidigest.pipeline.scoring import ScoredArticle
@@ -195,3 +195,16 @@ def test_output_order_and_log(conn: sqlite3.Connection, caplog: pytest.LogCaptur
     assert "claude_code=3/4" in summary
     assert "llm=2/3" in summary
     assert "other=1/2" in summary
+
+
+# ------------------------------------------------------------ current-events（specs/016）
+
+
+def test_allocate_top_ignores_topics(conn: sqlite3.Connection) -> None:
+    """AC-016-4"""
+    articles = ranked(conn, [(f"news{i}", ["news"]) for i in range(12)])
+
+    selected = allocate_top(conn, articles, 10)
+
+    assert titles(selected) == [f"news{i}" for i in range(10)]
+    assert [status(conn, a) for a in articles] == ["selected"] * 10 + ["scored"] * 2

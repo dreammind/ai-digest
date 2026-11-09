@@ -280,3 +280,32 @@ def test_params_from_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     params = RerankParams.from_settings(load_settings(tmp_path / "no-such.env"))
 
     assert params == RerankParams(top_n=12, excerpt_chars=200, llm_weight=0.3, max_tokens=4000)
+
+
+# ------------------------------------------------------------ current-events（specs/016）
+
+
+def test_current_events_system_prompt(conn: sqlite3.Connection) -> None:
+    """AC-016-3"""
+    params = RerankParams(
+        top_n=30,
+        excerpt_chars=200,
+        llm_weight=0.5,
+        max_tokens=4000,
+        system_prompt_file="rerank_current_events_system.md",
+    )
+    llm = FakeLlm([valid([0.5, 0.5])])
+
+    rerank(conn, scored(conn, [2.0, 1.0]), llm, params)
+
+    (call,) = llm.calls
+    prompt = (PROJECT_ROOT / "src/aidigest/prompts/rerank_current_events_system.md").read_text()
+    assert call.options.get("system") == prompt
+    assert "同じ出来事" in prompt
+    assert "初心者" in prompt
+    assert list(call.options.get("tools", [])) == [TOOL_DEFINITION]
+
+
+def test_default_system_prompt_is_dev() -> None:
+    """AC-016-3 の補足: 指定しなければ dev のプロンプト"""
+    assert PARAMS.system_prompt_file == "rerank_system.md"

@@ -331,15 +331,14 @@ class DigestConfig(BaseModel):
         return value
 
 
-class TopicsConfig(BaseModel):
-    """`topics.yaml` の内容。"""
+class TopicsBase(BaseModel):
+    """テーマのファイルのうち、採点（specs/006）に使う部分。2 つのプロファイルで共通。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     scoring: ScoringParams
     topics: list[Topic]
     negative: list[NonEmptyStr] = Field(default_factory=list[str])
-    digest: DigestConfig = Field(default_factory=DigestConfig)
 
     @model_validator(mode="after")
     def _unique_ids(self) -> Self:
@@ -349,9 +348,34 @@ class TopicsConfig(BaseModel):
         return self
 
 
+class TopicsConfig(TopicsBase):
+    """`topics.yaml`（dev）の内容。"""
+
+    digest: DigestConfig = Field(default_factory=DigestConfig)
+
+
+class CurrentEventsDigestConfig(BaseModel):
+    """current-events の配信する件数（specs/016）。セクションと上限は無い。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    size: Annotated[int, Field(ge=1)] = 10
+
+
+class CurrentEventsTopicsConfig(TopicsBase):
+    """`topics-current-events.yaml` の内容（specs/016）。"""
+
+    digest: CurrentEventsDigestConfig = Field(default_factory=CurrentEventsDigestConfig)
+
+
 def load_topics(path: Path) -> TopicsConfig:
     """`topics.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
     return _load_yaml_as(path, TopicsConfig)
+
+
+def load_current_events_topics(path: Path) -> CurrentEventsTopicsConfig:
+    """`topics-current-events.yaml` を読み、検証する。不正なら `ConfigError` を送出する。"""
+    return _load_yaml_as(path, CurrentEventsTopicsConfig)
 
 
 # ------------------------------------------------------------ pricing.yaml

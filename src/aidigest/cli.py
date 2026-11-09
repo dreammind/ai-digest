@@ -22,11 +22,13 @@ from typing import Protocol
 from aidigest.config import (
     PROFILES,
     ConfigError,
+    CurrentEventsTopicsConfig,
     LoadedSources,
     PricingConfig,
     Profile,
     Settings,
     TopicsConfig,
+    load_current_events_topics,
     load_pricing,
     load_settings,
     load_sources,
@@ -35,15 +37,26 @@ from aidigest.config import (
 from aidigest.db import DbError, open_db
 from aidigest.fetchers.http import HttpClient
 from aidigest.fetchers.runner import fetch_all, record_health
-from aidigest.llm import JST, LlmCaller, LlmClient, LlmUnavailable, spent_usd
+from aidigest.llm import JST, LlmCaller, LlmClient, LlmUnavailable, Spent, spent_usd
 from aidigest.mailer import MailConfigError, Mailer, MailError
-from aidigest.pipeline.allocation import allocate
+from aidigest.pipeline.allocation import allocate, allocate_top
 from aidigest.pipeline.dedupe import register_items
 from aidigest.pipeline.prefilter import prefilter
 from aidigest.pipeline.rerank import RerankParams, rerank
 from aidigest.pipeline.scoring import score_articles
-from aidigest.pipeline.summarize import SummaryParams, summarize_articles
-from aidigest.render import render_digest, write_static
+from aidigest.pipeline.summarize import (
+    CURRENT_EVENTS_SPEC,
+    SummaryParams,
+    summarize_articles,
+    summarize_with_spec,
+)
+from aidigest.render import (
+    RenderedDigest,
+    TextDigest,
+    render_current_events,
+    render_digest,
+    write_static,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +81,7 @@ class RunOptions:
 
 
 class MailSender(Protocol):
-    def send(self, subject: str, html: str, text: str) -> None: ...
+    def send(self, subject: str, html: str | None, text: str) -> None: ...
 
 
 LlmFactory = Callable[[sqlite3.Connection, int, PricingConfig], LlmCaller]
@@ -158,7 +171,11 @@ class _Run:
         sources_path, topics_path = _config_paths(s, profile)
         try:
             loaded = load_sources(sources_path)
-            topics = load_topics(topics_path)
+            topics: TopicsConfig | CurrentEventsTopicsConfig = (
+                load_current_events_topics(topics_path)
+                if profile == "current-events"
+                else load_topics(topics_path)
+            )
             pricing = None if self.options.no_llm else load_pricing(s.pricing_path)
             conn = open_db(s.db_path)
         except (ConfigError, DbError) as e:
@@ -175,7 +192,7 @@ class _Run:
         self,
         conn: sqlite3.Connection,
         loaded: LoadedSources,
-        topics: TopicsConfig,
+        topics: TopicsConfig | CurrentEventsTopicsConfig,
         pricing: PricingConfig | None,
     ) -> int:
         s = self.settings
@@ -207,35 +224,61 @@ class _Run:
             stage = "ローカルスコア"
             scored = score_articles(conn, passed, sources, topics)
             stage = "再ランク"
-            ranked = rerank(conn, scored, llm, RerankParams.from_settings(s))
-            stage = "枠配分"
-            selected = allocate(conn, ranked, topics.digest)
-            selected_count = len(selected)
-            stage = "要約"
-            summarized = summarize_articles(
-                conn, selected, llm, self.http, SummaryParams.from_settings(s)
-            )
-
-            stage = "生成"
-            spent = spent_usd(conn, self.now)
-            if llm is not None and (
-                spent.today >= s.budget_daily_usd or spent.month >= s.budget_monthly_usd
-            ):
-                notices.append(
-                    NOTICE_BUDGET.format(daily=s.budget_daily_usd, monthly=s.budget_monthly_usd)
+            digest: RenderedDigest | TextDigest
+            if isinstance(topics, CurrentEventsTopicsConfig):
+                ranked = rerank(
+                    conn,
+                    scored,
+                    llm,
+                    RerankParams.from_settings(s, "rerank_current_events_system.md"),
                 )
-            if self.options.dry_run:
-                notices = []
-            digest = render_digest(
-                summarized,
-                self.day,
-                result.health,
-                spent,
-                s.usd_jpy_rate,
-                notices,
-                s.templates_dir,
-            )
-            write_static(digest.html, self.day, s.output_dir)
+                stage = "枠配分"
+                selected = allocate_top(conn, ranked, topics.digest.size)
+                selected_count = len(selected)
+                stage = "要約"
+                summarized_ce = summarize_with_spec(
+                    conn,
+                    selected,
+                    llm,
+                    self.http,
+                    SummaryParams.from_settings(s),
+                    CURRENT_EVENTS_SPEC,
+                )
+                article_ids = [a.selected.ranked.scored.article.id for a in summarized_ce]
+                stage = "生成"
+                spent, notices = self._final_notices(conn, llm, notices)
+                digest = render_current_events(
+                    summarized_ce,
+                    self.day,
+                    result.health,
+                    spent,
+                    s.usd_jpy_rate,
+                    notices,
+                    s.templates_dir,
+                )
+            else:
+                ranked = rerank(conn, scored, llm, RerankParams.from_settings(s))
+                stage = "枠配分"
+                selected = allocate(conn, ranked, topics.digest)
+                selected_count = len(selected)
+                stage = "要約"
+                summarized = summarize_articles(
+                    conn, selected, llm, self.http, SummaryParams.from_settings(s)
+                )
+                article_ids = [a.selected.ranked.scored.article.id for a in summarized]
+                stage = "生成"
+                spent, notices = self._final_notices(conn, llm, notices)
+                digest = render_digest(
+                    summarized,
+                    self.day,
+                    result.health,
+                    spent,
+                    s.usd_jpy_rate,
+                    notices,
+                    s.templates_dir,
+                )
+            if isinstance(digest, RenderedDigest):
+                write_static(digest.html, self.day, s.output_dir)
         except Exception as e:  # どの段階の失敗でも、費用の記録を残して通知するため受け止める
             logger.exception("%s の段階で失敗しました", stage)
             _rollback_keeping_records(conn, run_id)
@@ -244,18 +287,17 @@ class _Run:
             self._notify_failure(stage, e)
             return EXIT_FAILED
 
-        article_ids = [a.selected.ranked.scored.article.id for a in summarized]
         error = None
         sent_count = 0
         if self.options.dry_run:
             _rollback_keeping_records(conn, run_id)  # 記事の状態は残さない（specs/013）
             status = "dry_run"
-        elif not summarized:
+        elif not article_ids:
             logger.info("記事が 0 件のため、メールは送りません")
             status = "empty"
         else:
             try:
-                self.mailer.send(digest.subject, digest.html, digest.text)
+                self.mailer.send(digest.subject, _html(digest), digest.text)
                 status = "sent"
                 sent_count = len(article_ids)
                 conn.executemany(
@@ -270,7 +312,14 @@ class _Run:
         conn.execute(
             "INSERT INTO digests (run_id, created_at, status, article_count, html, article_ids)"
             " VALUES (?, ?, ?, ?, ?, ?)",
-            (run_id, _iso(self.clock()), status, len(article_ids), digest.html, _json(article_ids)),
+            (
+                run_id,
+                _iso(self.clock()),
+                status,
+                len(article_ids),
+                _body(digest),
+                _json(article_ids),
+            ),
         )
         self._finish(conn, run_id, fetched, selected_count, sent_count, error)
         conn.commit()
@@ -279,6 +328,23 @@ class _Run:
             self._notify_failure("送信", MailError(error or ""))
             return EXIT_FAILED
         return EXIT_OK
+
+    def _final_notices(
+        self, conn: sqlite3.Connection, llm: LlmCaller | None, notices: list[str]
+    ) -> tuple[Spent, list[str]]:
+        """当日・当月の費用と、メールに付けるお知らせ（予算の上限、--dry-run なら無し）。"""
+        s = self.settings
+        spent = spent_usd(conn, self.now)
+        if llm is not None and (
+            spent.today >= s.budget_daily_usd or spent.month >= s.budget_monthly_usd
+        ):
+            notices = [
+                *notices,
+                NOTICE_BUDGET.format(daily=s.budget_daily_usd, monthly=s.budget_monthly_usd),
+            ]
+        if self.options.dry_run:
+            notices = []
+        return spent, notices
 
     def _prepare_llm(
         self, conn: sqlite3.Connection, run_id: int, pricing: PricingConfig | None
@@ -354,6 +420,17 @@ def _rollback_keeping_records(conn: sqlite3.Connection, run_id: int) -> None:
         " VALUES (?, ?, ?, ?, ?)",
         [tuple(row) for row in health],
     )
+
+
+def _html(digest: RenderedDigest | TextDigest) -> str | None:
+    """メールの HTML の本文。HTML が無い（current-events）なら None（text/plain だけのメール）。"""
+    return digest.html if isinstance(digest, RenderedDigest) else None
+
+
+def _body(digest: RenderedDigest | TextDigest) -> str:
+    """`digests.html` に入れる本文。HTML が無い（current-events）ならテキスト（SPEC §7）。"""
+    html = _html(digest)
+    return html if html is not None else digest.text
 
 
 def _iso(value: datetime) -> str:

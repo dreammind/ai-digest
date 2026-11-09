@@ -13,7 +13,7 @@ from pathlib import Path
 import httpx
 import pytest
 from anthropic.types import Message
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from aidigest.config import Source, load_settings
 from aidigest.db import open_db
@@ -25,10 +25,13 @@ from aidigest.pipeline.dedupe import register_items
 from aidigest.pipeline.rerank import RankedArticle
 from aidigest.pipeline.scoring import ScoredArticle
 from aidigest.pipeline.summarize import (
+    CURRENT_EVENTS_SPEC,
     TOOL_DEFINITION,
+    CurrentEventsSummary,
     SummarizedArticle,
     SummaryParams,
     summarize_articles,
+    summarize_with_spec,
 )
 from tests.fetchers.helpers import make_client
 from tests.llm_fakes import MODEL, FakeLlm, text_reply, tool_reply
@@ -124,7 +127,9 @@ def selected(
     ]
 
 
-def row(conn: sqlite3.Connection, article: SummarizedArticle) -> tuple[object, ...]:
+def row[S: BaseModel](
+    conn: sqlite3.Connection, article: SummarizedArticle[S]
+) -> tuple[object, ...]:
     return tuple(
         conn.execute(
             "SELECT summary_json, summary_model, status FROM articles WHERE id = ?",
@@ -375,3 +380,50 @@ def test_literal_newlines_become_real_newlines(conn: sqlite3.Connection) -> None
     stored, _, _ = row(conn, result)
     assert isinstance(stored, str)
     assert json.loads(stored)["summary"] == "一文目。\n\n二文目。"
+
+
+# ------------------------------------------------------------ current-events（specs/016）
+
+CE_SUMMARY: dict[str, object] = {
+    "title_ja": "Google フォームの回答を Gemini が分析",
+    "summary": "回答の傾向を見つけてくれる新機能です。次にやるとよいことも提案します。",
+    "why_it_matters": "アンケートの集計が楽になりそうです",
+}
+
+
+def ce_reply(**overrides: object) -> Message:
+    return tool_reply(CURRENT_EVENTS_SPEC.tool["name"], {**CE_SUMMARY, **overrides})
+
+
+def test_current_events_summary(conn: sqlite3.Connection) -> None:
+    """AC-016-5"""
+    llm = FakeLlm([ce_reply()])
+
+    (result,) = summarize_with_spec(
+        conn, selected(conn, 1), llm, client(), PARAMS, CURRENT_EVENTS_SPEC
+    )
+
+    (call,) = llm.calls
+    prompt = (PROJECT_ROOT / "src/aidigest/prompts/summarize_current_events_system.md").read_text()
+    assert call.options.get("system") == [
+        {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}
+    ]
+    assert list(call.options.get("tools", [])) == [CURRENT_EVENTS_SPEC.tool]
+    assert CURRENT_EVENTS_SPEC.tool.get("strict") is True
+    assert isinstance(result.summary, CurrentEventsSummary)
+    summary_json, model, status = row(conn, result)
+    assert isinstance(summary_json, str)
+    assert json.loads(summary_json) == CE_SUMMARY
+    assert (model, status) == (MODEL, "summarized")
+
+
+def test_current_events_empty_field_gives_no_summary(conn: sqlite3.Connection) -> None:
+    """AC-016-6"""
+    llm = FakeLlm([ce_reply(why_it_matters=""), ce_reply(why_it_matters="")])
+
+    (result,) = summarize_with_spec(
+        conn, selected(conn, 1), llm, client(), PARAMS, CURRENT_EVENTS_SPEC
+    )
+
+    assert len(llm.calls) == 2
+    assert result.summary is None

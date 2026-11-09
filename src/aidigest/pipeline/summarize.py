@@ -1,6 +1,7 @@
-"""本文の取得と日本語の要約（specs/010-summarize.md）。
+"""本文の取得と日本語の要約（specs/010-summarize.md、specs/016-current-events.md）。
 
 選んだ記事ごとに本文を取得・抽出し、Haiku で日本語の構造化要約を作る。
+要約のスキーマ・ツール・プロンプトは `SummarySpec` で切り替える（dev と current-events）。
 要約できなかった記事は要約なしで返す（011 で原題と原文リンクだけで配信する）。
 コミットは呼び出し側が行う。
 """
@@ -108,6 +109,46 @@ TOOL_DEFINITION: ToolParam = {
 }
 
 
+class CurrentEventsSummary(BaseModel):
+    """current-events の要約のスキーマ（SPEC.md §6、specs/016）。"""
+
+    title_ja: NonEmptyStr
+    summary: Annotated[NonEmptyStr, BeforeValidator(_real_newlines)]
+    why_it_matters: Annotated[NonEmptyStr, BeforeValidator(_real_newlines)]
+
+
+CURRENT_EVENTS_TOOL: ToolParam = {
+    "name": "submit_current_events_summary",
+    "description": "記事の日本語の要約（AI の初心者を含む読者向け）を提出する。",
+    "strict": True,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title_ja": _string("日本語のタイトル"),
+            "summary": _string("何が起きたかを 2 文で"),
+            "why_it_matters": _string("読者の暮らしや仕事にどう関係するかを 1 文で"),
+        },
+        "required": ["title_ja", "summary", "why_it_matters"],
+        "additionalProperties": False,
+    },
+}
+
+
+@dataclass(frozen=True)
+class SummarySpec[S: BaseModel]:
+    """要約のスキーマ・ツールの定義・システムプロンプトのファイル名の組。"""
+
+    model: type[S]
+    tool: ToolParam
+    prompt_file: str  # aidigest/prompts の中のファイル
+
+
+DEV_SPEC = SummarySpec(Summary, TOOL_DEFINITION, "summarize_system.md")
+CURRENT_EVENTS_SPEC = SummarySpec(
+    CurrentEventsSummary, CURRENT_EVENTS_TOOL, "summarize_current_events_system.md"
+)
+
+
 @dataclass(frozen=True)
 class SummaryParams:
     body_chars: int
@@ -119,9 +160,9 @@ class SummaryParams:
 
 
 @dataclass(frozen=True)
-class SummarizedArticle:
+class SummarizedArticle[S: BaseModel]:
     selected: SelectedArticle
-    summary: Summary | None
+    summary: S | None
 
 
 def summarize_articles(
@@ -130,18 +171,30 @@ def summarize_articles(
     llm: LlmCaller | None,
     http: HttpClient,
     params: SummaryParams,
-) -> list[SummarizedArticle]:
+) -> list[SummarizedArticle[Summary]]:
+    """dev の要約（specs/010）。"""
+    return summarize_with_spec(conn, selected, llm, http, params, DEV_SPEC)
+
+
+def summarize_with_spec[S: BaseModel](
+    conn: sqlite3.Connection,
+    selected: Sequence[SelectedArticle],
+    llm: LlmCaller | None,
+    http: HttpClient,
+    params: SummaryParams,
+    spec: SummarySpec[S],
+) -> list[SummarizedArticle[S]]:
     """選んだ記事を 1 件ずつ要約し、入力と同じ順で返す。"""
     if llm is None and selected:
         logger.warning("LLM が使えないため、要約せずにタイトルと原文リンクだけで続けます")
 
-    results: list[SummarizedArticle] = []
+    results: list[SummarizedArticle[S]] = []
     budget_exceeded = False
     for article in selected:
         summary = None
         if llm is not None and not budget_exceeded:
             try:
-                summary = _summarize_one(llm, http, article, params)
+                summary = _summarize_one(llm, http, article, params, spec)
             except BudgetExceeded as e:
                 logger.warning("予算の上限に達したため、残りの記事は要約しません: %s", e)
                 budget_exceeded = True
@@ -156,9 +209,13 @@ def summarize_articles(
     return results
 
 
-def _summarize_one(
-    llm: LlmCaller, http: HttpClient, article: SelectedArticle, params: SummaryParams
-) -> Summary | None:
+def _summarize_one[S: BaseModel](
+    llm: LlmCaller,
+    http: HttpClient,
+    article: SelectedArticle,
+    params: SummaryParams,
+    spec: SummarySpec[S],
+) -> S | None:
     body = _body(http, article, params.body_chars)
     if not body:
         logger.warning("本文が取れないため要約しません（%s）", _url(article))
@@ -170,15 +227,15 @@ def _summarize_one(
             "summarize",
             messages=[{"role": "user", "content": content}],
             max_tokens=params.max_tokens,
-            system=[_system_block()],
-            tools=[TOOL_DEFINITION],
+            system=[_system_block(spec.prompt_file)],
+            tools=[spec.tool],
             tool_choice={"type": "auto"},
             output_config={"effort": "low"},
         )
-        tool_input, problem = single_tool_input(response, TOOL_NAME)
+        tool_input, problem = single_tool_input(response, spec.tool["name"])
         if tool_input is not None:
             try:
-                return Summary.model_validate(tool_input)
+                return spec.model.model_validate(tool_input)
             except ValidationError as e:
                 problem = f"スキーマ違反: {describe_validation_error(e)}"
         logger.warning("要約の応答が不正です（%d 回目、%s）: %s", attempt, _url(article), problem)
@@ -206,12 +263,8 @@ def _user_message(article: SelectedArticle, body: str) -> str:
     return f"出典: {item.source_id}\n原題: {item.title}\nURL: {_url(article)}\n\n本文:\n{body}"
 
 
-def _system_block() -> TextBlockParam:
-    prompt = (
-        resources.files("aidigest.prompts")
-        .joinpath("summarize_system.md")
-        .read_text(encoding="utf-8")
-    )
+def _system_block(file_name: str) -> TextBlockParam:
+    prompt = resources.files("aidigest.prompts").joinpath(file_name).read_text(encoding="utf-8")
     return {"type": "text", "text": prompt, "cache_control": {"type": "ephemeral"}}
 
 
@@ -220,7 +273,7 @@ def _url(article: SelectedArticle) -> str:
 
 
 def _record(
-    conn: sqlite3.Connection, article: SelectedArticle, summary: Summary, model: str
+    conn: sqlite3.Connection, article: SelectedArticle, summary: BaseModel, model: str
 ) -> None:
     conn.execute(
         "UPDATE articles SET summary_json = ?, summary_model = ?, status = 'summarized'"

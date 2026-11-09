@@ -4,6 +4,15 @@
 
 AI Digest は、Claude Code と LLM に関する記事を毎朝集めて、日本語で要約し、1 通のメールで届ける Python アプリです。
 
+同じ仕組みで、2 種類の配信（**プロファイル**）を動かせます（[SPEC.md](../SPEC.md) §1）。
+
+| プロファイル | 内容 | メールの件名 |
+|---|---|---|
+| `dev`（既定） | Claude Code と LLM の開発向けの記事。最大 8 件、HTML メール | `[AI Digest] YYYY-MM-DD 注目 N 件` |
+| `current-events` | 友人の AI の LINE グループに紹介する、一般向けの AI の時事ネタ。10 件、テキストメール。先頭の「LINE に貼る部分」から記事を選んで、手で LINE に貼る | `[AI 時事ネタ] YYYY-MM-DD N 件` |
+
+以下の「処理の流れ」は `dev` のものです。`current-events` の違いは 5.7 にまとめています。
+
 ### 処理の流れ
 
 ```
@@ -30,8 +39,8 @@ cron（毎朝 6:30 JST）
 
 ### 費用の目安
 
-- LLM の費用は 1 日あたり約 $0.008（約 1.3 円）、1 か月で約 40 円です。
-- アプリの予算ガード（1 日 $0.15、1 か月 $2.0）を超えると LLM を呼ぶのをやめ、タイトルだけのダイジェストに切り替えます。
+- LLM の費用は 1 日あたり約 $0.008（約 1.3 円）、1 か月で約 40 円です。`current-events` は 1 日あたり約 $0.01（約 1.6 円）の見込みです（実測して更新する）。
+- アプリの予算ガード（1 日 $0.15、1 か月 $2.0）は、2 つのプロファイルの合計で判定します。超えると LLM を呼ぶのをやめ、タイトルだけのダイジェストに切り替えます。
 - Anthropic Console のクレジット残高（自動リロードはオフ）が、最後の歯止めになります。
 
 ### 関連する文書
@@ -39,7 +48,7 @@ cron（毎朝 6:30 JST）
 | 文書 | 内容 |
 |---|---|
 | [SPEC.md](../SPEC.md) | 全体の仕様 |
-| [specs/](../specs/) | 機能ごとの詳細な仕様と受け入れ基準（001〜014） |
+| [specs/](../specs/) | 機能ごとの詳細な仕様と受け入れ基準（001〜016） |
 | [CLAUDE.md](../CLAUDE.md) | 開発のルール（仕様駆動・テスト駆動、型、秘密情報の扱いなど） |
 
 ---
@@ -69,9 +78,11 @@ src/aidigest/
   render.py        # メールの HTML とテキストの生成
   mailer.py        # SMTP でのメール送信
   cli.py           # コマンド（python -m aidigest.cli run）
-templates/         # メールのテンプレート（HTML とテキスト）
-sources.yaml       # 取得するソース
-topics.yaml        # 採点のキーワードと重み、配信の件数と上限
+templates/         # メールのテンプレート（dev の HTML とテキスト、current-events のテキスト）
+sources.yaml       # 取得するソース（dev）
+topics.yaml        # 採点のキーワードと重み、配信の件数と上限（dev）
+sources-current-events.yaml  # 取得するソース（current-events）
+topics-current-events.yaml   # 採点のキーワードと重み、配信の件数（current-events）
 pricing.yaml       # LLM の単価表
 .env.example       # .env の見本
 tests/             # テスト
@@ -165,7 +176,8 @@ cp .env.example .env            # 設定ファイルを作り、5 章のとお�
 | `TEMPLATES_DIR` / `OUTPUT_DIR` | `templates` / `output` | テンプレートと静的 HTML の場所 |
 | `DB_PATH` | `data/aidigest.db` | DB ファイル |
 | `LOG_DIR` / `LOG_BACKUP_DAYS` | `logs` / `30` | ログの場所と保存日数 |
-| `LOCK_PATH` | `data/aidigest.lock` | 二重実行を防ぐロックファイル |
+| `LOCK_PATH` | `data/aidigest.lock` | 二重実行を防ぐロックファイル（2 つのプロファイルで共通） |
+| `CURRENT_EVENTS_SOURCES_PATH` / `CURRENT_EVENTS_TOPICS_PATH` | `sources-current-events.yaml` / `topics-current-events.yaml` | `current-events` の設定ファイルの場所 |
 
 ### 5.2 Anthropic API キー
 
@@ -215,6 +227,13 @@ MAIL_TO=you@gmail.com
 
 モデルごとの単価（100 万トークンあたりの USD）です。費用の記録と予算ガードに使います。料金が変わったら、[公式の料金ページ](https://platform.claude.com/docs/en/about-claude/pricing) を確認して更新してください。
 
+### 5.7 `current-events` の設定（`sources-current-events.yaml`・`topics-current-events.yaml`）
+
+- `sources-current-events.yaml`：日本語 6・海外 6 の RSS（[SPEC.md](../SPEC.md) §5「`current-events` のソース」）。AI の専門ではないサイトは、`require_keywords`（ファイルの先頭の `ai_keywords`）で AI の記事だけに絞ります。照合は部分一致なので、英語のサイトを `require_keywords` で絞らないでください（`AI` が `said` などにも一致する）。
+- `topics-current-events.yaml`：テーマは `news`（時事）・`caution`（注意点）・`howto`（使い方）・`fun`（面白ネタ）の 4 つ。`digest` は `size`（件数）だけで、セクションや上限はありません（書くとエラー）。
+- 再ランクと要約のプロンプトは `src/aidigest/prompts/` の `rerank_current_events_system.md`・`summarize_current_events_system.md` です。
+- キーワードの初期値は暫定です。配信を何日か見て調整します。短い英字の語（`API`・`law`・`Meta` など）は、英語の記事で別の語の一部に一致するので避けてください。
+
 ---
 
 ## 6. 動かし方
@@ -223,6 +242,7 @@ MAIL_TO=you@gmail.com
 uv run python -m aidigest.cli run              # 取得からメール送信までを 1 回実行する
 uv run python -m aidigest.cli run --dry-run    # メールを送らず、記事の状態も残さない（試し用）
 uv run python -m aidigest.cli run --no-llm     # LLM を使わない（タイトルだけのダイジェスト）
+uv run python -m aidigest.cli run --profile current-events   # LINE グループ向けの時事ネタ（ほかのオプションと組み合わせられる）
 ```
 
 | オプション | 動き |
@@ -230,6 +250,7 @@ uv run python -m aidigest.cli run --no-llm     # LLM を使わない（タイト
 | なし | メールを送り、送った記事を既読（`sent`）にする |
 | `--dry-run` | メールは送らない。静的 HTML は書き出す。記事の状態は残さないので、次の通常の実行で同じ記事が配信される。LLM の費用の記録は残る |
 | `--no-llm` | LLM を呼ばない。記事はタイトルと原文リンクだけになり、メールにお知らせが付く |
+| `--profile` | `dev`（既定）か `current-events`。既読の記録はプロファイルごとなので、同じ記事が両方に出ることがある |
 
 | 終了コード | 意味 |
 |---|---|
@@ -241,8 +262,8 @@ uv run python -m aidigest.cli run --no-llm     # LLM を使わない（タイト
 
 | 場所 | 内容 |
 |---|---|
-| メール | 件名 `[AI Digest] YYYY-MM-DD 注目 N 件` |
-| `output/YYYY-MM-DD.html` | メールと同じ内容の HTML |
+| メール | 件名 `[AI Digest] YYYY-MM-DD 注目 N 件`（`current-events` は `[AI 時事ネタ] YYYY-MM-DD N 件` のテキストメール）。失敗通知は `[AI Digest] 実行に失敗しました（プロファイル名） YYYY-MM-DD` |
+| `output/YYYY-MM-DD.html` | メールと同じ内容の HTML（`dev` だけ） |
 | `logs/aidigest.log` | アプリのログ（日ごとにローテーション、30 日分） |
 | `data/aidigest.db` | 記事・実行の記録・LLM の費用・ソースの取得結果・送ったダイジェスト |
 
@@ -307,6 +328,12 @@ crontab -e
 - cron の PATH は最小限なので、uv は絶対パスで呼びます。
 - `logs/cron.log` には、uv の起動の失敗など、アプリより前の段階のエラーが残ります。
 
+`current-events` も動かすときは、上の行を次のように置き換えます（`dev` の後に続けて実行する。`dev` が失敗しても `current-events` は動くように `;` でつなぐ。ロックファイルは共通なので、同時には動かさない）。
+
+```
+30 6 * * * cd /home/<ユーザー名>/ws/ai-digest && { /home/<ユーザー名>/.local/bin/uv run --frozen python -m aidigest.cli run; /home/<ユーザー名>/.local/bin/uv run --frozen python -m aidigest.cli run --profile current-events; } >> /home/<ユーザー名>/ws/ai-digest/logs/cron.log 2>&1
+```
+
 ---
 
 ## 9. 運用
@@ -320,7 +347,8 @@ crontab -e
 | 費用を見る | メールのフッター（本日・今月）、または `data/aidigest.db` の `llm_calls` テーブル |
 | 取得に失敗したソースを見る | メールのフッター、または `source_health` テーブル |
 | crontab を元に戻す | `crontab ~/ws/ai-digest/data/crontab.backup-YYYYMMDD` |
-| ソースやキーワードを調整する | `sources.yaml`・`topics.yaml` を直して push → VPS で `git pull`（コードの変更は不要） |
+| ソースやキーワードを調整する | `sources.yaml`・`topics.yaml`（`current-events` は `-current-events` の付いたファイル）を直して push → VPS で `git pull`（コードの変更は不要） |
+| LINE グループに紹介する | `[AI 時事ネタ]` のメールの「ここから LINE に貼る」から「ここまで」の間をコピーし、紹介しない記事（`🔹` から URL までの 4 行と空行）を消して貼る。管理用の情報は貼らない |
 
 ---
 

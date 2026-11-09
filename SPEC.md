@@ -137,7 +137,7 @@ MVP で使わないことにしたソースと理由:
 | 日本語 | PC Watch | `https://pc.watch.impress.co.jp/data/rss/1.0/pcw/feed.rdf` | 20 件（約 54 時間） | 3 | する |
 | 海外 | The Verge（AI） | `https://www.theverge.com/rss/ai-artificial-intelligence/index.xml` | 10 件（約 48 時間） | 2 | しない（AI の分類） |
 | 海外 | CNET（AI） | `https://www.cnet.com/rss/ai/` | 13 件（1 日 1 本ほど） | 2 | しない（AI の分類） |
-| 海外 | Google 公式ブログ（AI） | `https://blog.google/technology/ai/rss/` | 20 件（約 2 か月） | 2 | しない（AI の分類） |
+| 海外 | Google 公式ブログ（AI） | `https://blog.google/innovation-and-ai/technology/ai/rss/`（旧 URL `https://blog.google/technology/ai/rss/` から 301 で転送される。2026-11-09 に転送先に変えた） | 20 件（約 2 か月） | 2 | しない（AI の分類） |
 | 海外 | WIRED（AI） | `https://www.wired.com/feed/tag/ai/latest/rss` | 10 件（約 72 時間） | 3 | しない（AI のタグ） |
 | 海外 | The Guardian（AI） | `https://www.theguardian.com/technology/artificialintelligenceai/rss` | 20 件（約 45 時間） | 3 | しない（AI の分類） |
 | 海外 | Ars Technica（AI） | `https://arstechnica.com/ai/feed/` | 20 件（約 9 日） | 3 | しない（AI の分類） |
@@ -255,9 +255,11 @@ https://www.itmedia.co.jp/news/article/2611/09/2000002926/
 ----- ここまで -----
 
 ■ 管理用の情報
-- ソース：Google フォーム…＝窓の杜、漏れた個人情報…＝ITmedia AI+
-- 取得に失敗したソース：なし
-- LLM の費用：本日 $0.018 / 今月 $0.21
+ソース：
+- Google フォームの回答を Gemini が分析してくれるように＝forest-watch
+- 漏れた個人情報で「あなた専用の詐欺メール」が来るかも＝itmedia-aiplus
+取得に失敗したソース：なし
+LLM の費用：本日 2.88 円（$0.0180）／ 今月 33.60 円（$0.2100）
 ```
 
 ## 9. 実行環境

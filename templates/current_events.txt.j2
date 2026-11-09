@@ -1,0 +1,33 @@
+----- ここから LINE に貼る -----
+🤖 今日の AI ニュース（{{ day_md }}）
+{% for article in articles %}
+
+🔹 {{ article.title }}
+{% if article.summary is not none %}
+{{ article.summary }}
+👉 {{ article.why }}
+{% endif %}
+{{ article.url }}
+{% endfor %}
+----- ここまで -----
+
+■ 管理用の情報
+{% if notices %}
+お知らせ：
+{% for notice in notices %}
+- {{ notice }}
+{% endfor %}
+{% endif %}
+ソース：
+{% for article in articles %}
+- {{ article.title }}＝{{ article.source }}
+{% endfor %}
+{% if failed %}
+取得に失敗したソース：
+{% for source in failed %}
+- {{ source.source_id }}：{{ source.error }}
+{% endfor %}
+{% else %}
+取得に失敗したソース：なし
+{% endif %}
+LLM の費用：{{ cost }}

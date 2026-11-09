@@ -92,11 +92,19 @@ class FakeAnthropic:
         tool = str(body["tools"][0]["name"])
         text = str(body["messages"][0]["content"])
         self.tool_names.append(tool)
-        if tool == "submit_relevance":
+        if tool == "submit_current_events_summary":
+            title_match = re.search(r"原題: (.+)", text)
+            assert title_match is not None
+            tool_input: dict[str, object] = {
+                "title_ja": f"訳:{title_match.group(1)}",
+                "summary": "何が起きたか。",
+                "why_it_matters": "暮らしとの関係。",
+            }
+        elif tool == "submit_relevance":
             count_match = re.search(r"次の (\d+) 件", text)
             assert count_match is not None
             count = int(count_match.group(1))
-            tool_input: dict[str, object] = {
+            tool_input = {
                 "scores": [
                     {"id": i, "relevance": 0.8, "reason": "関連"} for i in range(1, count + 1)
                 ]
@@ -134,12 +142,18 @@ class FakeAnthropic:
 class FakeMailer:
     def __init__(self, fail: bool = False) -> None:
         self.fail = fail
-        self.sent: list[tuple[str, str, str]] = []
+        self.sent: list[tuple[str, str | None, str]] = []
 
-    def send(self, subject: str, html: str, text: str) -> None:
+    def send(self, subject: str, html: str | None, text: str) -> None:
         self.sent.append((subject, html, text))
         if self.fail:
             raise MailError("SMTPServerDisconnected: gone")
+
+    def html(self, index: int = 0) -> str:
+        """送ったメールの HTML の本文（dev のメールは必ず HTML を持つ）。"""
+        html = self.sent[index][1]
+        assert html is not None
+        return html
 
 
 class Env:
@@ -247,7 +261,7 @@ def test_normal_run(env: Env) -> None:
 
     assert code == 0
     assert env.subjects() == ["[AI Digest] 2026-10-17 注目 3 件"]
-    _, html, _ = env.mailer.sent[0]
+    html = env.mailer.html()
     assert "訳:Claude Code の hooks 活用" in html
     assert (env.tmp / "output" / "2026-10-17.html").read_text(encoding="utf-8") == html
     (run,) = env.rows("SELECT * FROM runs")
@@ -283,7 +297,8 @@ def test_one_source_failure_does_not_stop(env: Env) -> None:
     code = env.run()
 
     assert code == 0
-    (subject, html, _) = env.mailer.sent[0]
+    subject = env.mailer.sent[0][0]
+    html = env.mailer.html()
     assert subject == "[AI Digest] 2026-10-17 注目 2 件"
     assert "feed-b" in html
     health = {r["source_id"]: r["status"] for r in env.rows("SELECT * FROM source_health")}
@@ -296,7 +311,7 @@ def test_no_llm_option(env: Env) -> None:
 
     assert code == 0
     assert env.anthropic.tool_names == []
-    _, html, _ = env.mailer.sent[0]
+    html = env.mailer.html()
     assert "LLM を使わずに作成しました" in html
     assert "要約なし" in html
     assert "訳:" not in html
@@ -311,7 +326,7 @@ def test_missing_api_key(env: Env, caplog: pytest.LogCaptureFixture) -> None:
 
     assert code == 0
     assert env.anthropic.tool_names == []
-    _, html, _ = env.mailer.sent[0]
+    html = env.mailer.html()
     assert "LLM が使えないため、要約なしで作成しました" in html
     assert any(r.levelno == logging.ERROR for r in caplog.records)
 
@@ -324,7 +339,7 @@ def test_budget_notice(env: Env) -> None:
 
     assert code == 0
     assert env.anthropic.tool_names == ["submit_relevance"]
-    _, html, _ = env.mailer.sent[0]
+    html = env.mailer.html()
     assert "予算の上限" in html
     assert "要約なし" in html
 
@@ -609,3 +624,23 @@ def test_lock_is_shared_between_profiles(ce_env: Env) -> None:
 
     assert code == 2
     assert ce_env.sites.requests == []
+
+
+# ------------------------------------------------------------ current-events（specs/016）
+
+
+def test_current_events_run(ce_env: Env) -> None:
+    """AC-016-12"""
+    code = ce_env.run(profile="current-events")
+
+    assert code == 0
+    ((subject, html, text),) = ce_env.mailer.sent
+    assert subject == "[AI 時事ネタ] 2026-10-17 2 件"
+    assert html is None
+    assert "🔹 訳:Gemini の新機能\n何が起きたか。\n👉 暮らしとの関係。\n" in text
+    assert not (ce_env.tmp / "output" / "2026-10-17.html").exists()
+    (digest,) = ce_env.rows("SELECT * FROM digests")
+    assert digest["status"] == "sent"
+    assert digest["html"] == text
+    assert {r["status"] for r in ce_env.rows("SELECT status FROM articles")} == {"sent"}
+    assert "submit_current_events_summary" in ce_env.anthropic.tool_names

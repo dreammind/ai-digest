@@ -264,3 +264,25 @@ def test_partially_refused_recipients(tmp_path: Path, caplog: pytest.LogCaptureF
     assert len(server.sent) == 1
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert any("b@example.com" in w for w in warnings)
+
+
+def test_text_only_message() -> None:
+    """AC-016-11"""
+    msg = build_message(
+        subject="[AI 時事ネタ] 2026-11-09 10 件",
+        html=None,
+        text="🔹 テキストだけの本文\n",
+        mail_from="AI Digest <me@example.com>",
+        mail_to=["a@example.com", "b@example.com"],
+        now=NOW,
+    )
+
+    assert msg["Subject"] == "[AI 時事ネタ] 2026-11-09 10 件"
+    assert msg["From"] == "AI Digest <me@example.com>"
+    assert msg["To"] == "a@example.com, b@example.com"
+    assert msg["Date"] is not None
+    assert msg["Message-ID"] is not None
+    assert not msg.is_multipart()
+    assert msg.get_content_type() == "text/plain"
+    assert msg.get_content_charset() == "utf-8"
+    assert msg.get_content() == "🔹 テキストだけの本文\n"

@@ -69,14 +69,18 @@ class RerankParams:
     excerpt_chars: int
     llm_weight: float
     max_tokens: int
+    system_prompt_file: str = "rerank_system.md"  # aidigest/prompts の中のファイル（specs/016）
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> Self:
+    def from_settings(
+        cls, settings: Settings, system_prompt_file: str = "rerank_system.md"
+    ) -> Self:
         return cls(
             top_n=settings.rerank_top_n,
             excerpt_chars=settings.rerank_excerpt_chars,
             llm_weight=settings.rerank_llm_weight,
             max_tokens=settings.rerank_max_tokens,
+            system_prompt_file=system_prompt_file,
         )
 
 
@@ -143,7 +147,7 @@ def _ask(
                 "rerank",
                 messages=[{"role": "user", "content": content}],
                 max_tokens=params.max_tokens,
-                system=_system_prompt(),
+                system=_system_prompt(params.system_prompt_file),
                 tools=[TOOL_DEFINITION],
                 tool_choice={"type": "auto"},
                 output_config={"effort": "low"},
@@ -190,7 +194,5 @@ def _excerpt(content: str, chars: int) -> str:
     return text or NO_EXCERPT
 
 
-def _system_prompt() -> str:
-    return (
-        resources.files("aidigest.prompts").joinpath("rerank_system.md").read_text(encoding="utf-8")
-    )
+def _system_prompt(file_name: str) -> str:
+    return resources.files("aidigest.prompts").joinpath(file_name).read_text(encoding="utf-8")

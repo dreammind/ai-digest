@@ -52,13 +52,16 @@ def _connect(host: str, port: int, timeout: float, use_ssl: bool) -> SmtpConnect
 def build_message(
     *,
     subject: str,
-    html: str,
+    html: str | None,
     text: str,
     mail_from: str,
     mail_to: Sequence[str],
     now: datetime,
 ) -> EmailMessage:
-    """テキスト → HTML の順の multipart/alternative のメールを作る。"""
+    """テキスト → HTML の順の multipart/alternative のメールを作る。
+
+    `html` が None なら、text/plain だけのメールにする（specs/016）。
+    """
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = mail_from
@@ -67,7 +70,8 @@ def build_message(
     domain = parseaddr(mail_from)[1].rpartition("@")[2]
     msg["Message-ID"] = make_msgid(domain=domain or None)
     msg.set_content(text, subtype="plain", charset="utf-8")
-    msg.add_alternative(html, subtype="html", charset="utf-8")
+    if html is not None:
+        msg.add_alternative(html, subtype="html", charset="utf-8")
     return msg
 
 
@@ -85,7 +89,7 @@ class Mailer:
         self._sleep = sleep
         self._clock = clock
 
-    def send(self, subject: str, html: str, text: str) -> None:
+    def send(self, subject: str, html: str | None, text: str) -> None:
         """メールを送る。一時的なエラーは再試行し、それでも失敗すれば `MailError`。"""
         s = self._settings
         host, port, user, mail_from = s.smtp_host, s.smtp_port, s.smtp_user, s.mail_from

@@ -11,7 +11,7 @@ import sqlite3
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from aidigest.config import Source, TopicsConfig
+from aidigest.config import Source, TopicsBase
 from aidigest.models import FetchedItem
 from aidigest.pipeline.dedupe import NewArticle
 from aidigest.pipeline.text import content_excerpt, normalize
@@ -29,7 +29,7 @@ class ScoredArticle:
 
 
 def local_score(
-    item: FetchedItem, source: Source | None, topics: TopicsConfig
+    item: FetchedItem, source: Source | None, topics: TopicsBase
 ) -> tuple[float, list[str]]:
     """記事のローカルスコアと、当てはまったテーマ（点の大きい順）を返す。"""
     params = topics.scoring
@@ -88,7 +88,7 @@ def score_articles(
     conn: sqlite3.Connection,
     articles: Sequence[NewArticle],
     sources: Mapping[str, Source],
-    topics: TopicsConfig,
+    topics: TopicsBase,
 ) -> list[ScoredArticle]:
     """採点して足切りと重複除去を行い、残った記事をスコアの高い順に返す。"""
     params = topics.scoring

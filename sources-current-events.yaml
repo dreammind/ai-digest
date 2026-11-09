@@ -1,0 +1,107 @@
+# current-events プロファイルのソース（SPEC.md §5「current-events のソース」、specs/016）
+# URL は 2026-11-09 に実際に取得して確認したもの。
+# AI の専門・AI の分類のフィード以外は、require_keywords で AI の記事だけに絞る。
+# 照合は部分一致なので、英語のソースを require_keywords で絞らない（SPEC.md §5）。
+
+ai_keywords: &ai_keywords
+  - AI
+  - 人工知能
+  - ChatGPT
+  - Gemini
+  - Claude
+  - Copilot
+  - OpenAI
+  - Anthropic
+  - LLM
+  - チャットボット
+
+# 全ソース共通の除外（製品のセールなど）。「セール」だけだと「セールス」にも一致するため「セール中」
+exclude_keywords:
+  - お買い得
+  - セール中
+  - 【PR】
+  - 値引き
+  - "% OFF"
+  - ％オフ
+
+sources:
+  # --- 日本語
+  - id: itmedia-aiplus
+    type: rss
+    url: https://rss.itmedia.co.jp/rss/2.0/aiplus.xml
+    category: japanese
+    priority: 1
+    max_items: 30
+  - id: itmedia-news
+    type: rss
+    url: https://rss.itmedia.co.jp/rss/2.0/news_bursts.xml
+    category: japanese
+    priority: 2
+    max_items: 60
+    require_keywords: *ai_keywords
+  - id: gigazine
+    type: rss
+    url: https://gigazine.net/news/rss_2.0/
+    category: japanese
+    priority: 2
+    max_items: 40
+    require_keywords: *ai_keywords
+  - id: forest-watch
+    type: rss
+    url: https://forest.watch.impress.co.jp/data/rss/1.0/wf/feed.rdf
+    category: japanese
+    priority: 2
+    max_items: 60
+    require_keywords: *ai_keywords
+  - id: bi-japan
+    type: rss
+    url: https://www.businessinsider.jp/feed/index.xml
+    category: japanese
+    priority: 3
+    max_items: 30
+    require_keywords: *ai_keywords
+  - id: pc-watch
+    type: rss
+    url: https://pc.watch.impress.co.jp/data/rss/1.0/pcw/feed.rdf
+    category: japanese
+    priority: 3
+    max_items: 30
+    require_keywords: *ai_keywords
+
+  # --- 海外（AI の分類・タグのフィード）
+  - id: verge-ai
+    type: rss
+    url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+    category: community
+    priority: 2
+    max_items: 30
+  - id: cnet-ai
+    type: rss
+    url: https://www.cnet.com/rss/ai/
+    category: community
+    priority: 2
+    max_items: 30
+  - id: google-blog-ai
+    type: rss
+    url: https://blog.google/innovation-and-ai/technology/ai/rss/
+    category: official
+    priority: 2
+    max_items: 30
+  - id: wired-ai
+    type: rss
+    url: https://www.wired.com/feed/tag/ai/latest/rss
+    category: community
+    priority: 3
+    max_items: 30
+  - id: guardian-ai
+    type: rss
+    url: https://www.theguardian.com/technology/artificialintelligenceai/rss
+    category: community
+    priority: 3
+    max_items: 30
+  - id: ars-ai
+    type: rss
+    url: https://arstechnica.com/ai/feed/
+    category: community
+    priority: 3
+    max_items: 30
