@@ -48,6 +48,8 @@ uv run pyright && uv run ruff check . && uv run pytest   # 変更後の確認
 | [012](specs/012-mailer.md) | メール送信（SMTP） | 実装済み |
 | [013](specs/013-cli.md) | CLI と処理全体の統合 | 実装済み |
 | [014](specs/014-deploy.md) | VPS への反映と cron の登録 | 反映済み（初回の配信は 2026-10-17 の朝に確認） |
+| [015](specs/015-profiles.md) | プロファイルの切り替え（`--profile`、設定、DB） | 承認済み |
+| [016](specs/016-current-events.md) | `current-events` プロファイル（LINE グループ向けの時事ネタ） | 承認済み |
 
 テスト：408 件、カバレッジ 99%（2026-10-16 時点）。
 

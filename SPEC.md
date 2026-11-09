@@ -208,7 +208,7 @@ MVP で使わないことにしたソースと理由:
 - `schema_version`: マイグレーション管理用（スキーマ変更は番号付きのマイグレーションで行う）
 - 既読判定は `articles.url`（正規化済み）で行う。取得した全記事は、スコアが低くて落ちた記事も含めて、取得時点で記録する（配信対象が 0 件でも翌日に再採点しない）。
 - 保持期間: 選ばれなかった記事は 90 日、選ばれた記事は 1 年、`digests.html` は 90 日（その後は NULL にしてメタデータだけ残す）。
-- プロファイル: 2 つのプロファイルで 1 つの DB を使う。`articles`・`runs`・`digests`・`llm_calls` に `profile`（`dev` / `current-events`）を持たせる（マイグレーションで追加し、既存の行は `dev` にする）。
+- プロファイル: 2 つのプロファイルで 1 つの DB を使う。`articles` と `runs` に `profile`（`dev` / `current-events`）を持たせる（マイグレーションで追加し、既存の行は `dev` にする）。`digests`・`llm_calls`・`source_health` のプロファイルは、`run_id` から `runs.profile` をたどって求める（同じ情報を 2 か所に持たない。specs/015 の決定事項 1）。
   - 既読判定はプロファイルごとに行う（`articles` は `profile` と `url` の組で一意）。同じ記事が両方のプロファイルで配信されてもよい。
   - `current-events` の `digests.html` には、メールの本文のテキストを入れる。
 
