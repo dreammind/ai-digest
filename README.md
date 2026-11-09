@@ -6,7 +6,7 @@ Zenn・Qiita・Hacker News・Simon Willison のブログから記事を取得し
 - 本番：さくらの VPS で、cron により毎朝 6:30（日本時間）に実行
 - 費用：LLM は 1 日あたり約 1.3 円（1 か月 約 40 円）。予算ガードつき
 - 状態：Phase 1（MVP）の実装と VPS への反映が完了（2026-10-16）
-- 準備中：友人の AI の LINE グループに紹介するための、一般向けの AI の時事ネタの配信（プロファイル `current-events`。[SPEC.md](SPEC.md) §1）
+- 2 つ目の配信：友人の AI の LINE グループに紹介するための、一般向けの AI の時事ネタ（プロファイル `current-events`。毎朝 10 件のテキストメール。[SPEC.md](SPEC.md) §1）
 
 ## 文書
 
@@ -49,7 +49,7 @@ uv run pyright && uv run ruff check . && uv run pytest   # 変更後の確認
 | [013](specs/013-cli.md) | CLI と処理全体の統合 | 実装済み |
 | [014](specs/014-deploy.md) | VPS への反映と cron の登録 | 反映済み（初回の配信は 2026-10-17 の朝に確認） |
 | [015](specs/015-profiles.md) | プロファイルの切り替え（`--profile`、設定、DB） | 実装済み |
-| [016](specs/016-current-events.md) | `current-events` プロファイル（LINE グループ向けの時事ネタ） | 実装済み（LLM を使った dry-run で確認済み。VPS への反映は未） |
+| [016](specs/016-current-events.md) | `current-events` プロファイル（LINE グループ向けの時事ネタ） | 反映済み（2026-11-09。初回の配信は 2026-11-10 の朝に確認） |
 
 テスト：440 件、カバレッジ 99%（2026-11-09 時点）。
 
@@ -75,6 +75,9 @@ uv run pyright && uv run ruff check . && uv run pytest   # 変更後の確認
 | VPS の uv を更新する（0.10.0 → 手元と同じ版） | 手元と VPS で uv の版が違う。ロックファイルの扱いの差を避ける |
 | DB（`data/aidigest.db`）のバックアップ | 既読の記録と費用の記録が VPS の 1 ファイルにしか無い |
 | 仕様のエラー時の表の各行にも受け入れ基準の ID を振る（`specs/README.md` のルール） | 表の行がテストと対応づかず、抜けに気づきにくい |
+| current-events のキーワードとスコアの調整（`topics-current-events.yaml`） | 初期値は暫定（[016](specs/016-current-events.md) の決定事項 4）。数日分の配信を見て、開発者向けの記事（例：Claude の記憶の仕組み）が混ざらないかなどを確かめる |
+| 英字のキーワードを単語単位で照合する書き方 | 部分一致では英語の `AI` が `said` などに当たるため、英語のソースを `require_keywords` で絞れない（BBC を外した。SPEC §14） |
+| 編集後の hook（ruff・pyright）を、プロジェクトの外のファイルには走らせない | 2026-11-09、scratchpad の調査用スクリプトにも hook が走り、指摘が差し戻された |
 | Phase 2 以降（ソースの拡充、静的 HTML の Web 配信、検索、フィードバック） | [SPEC.md](SPEC.md) §12 |
 
 ## 新しいセッションで作業を始めるとき
