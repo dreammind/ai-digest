@@ -49,9 +49,9 @@ uv run pyright && uv run ruff check . && uv run pytest   # 変更後の確認
 | [013](specs/013-cli.md) | CLI と処理全体の統合 | 実装済み |
 | [014](specs/014-deploy.md) | VPS への反映と cron の登録 | 反映済み（初回の配信は 2026-10-17 の朝に確認） |
 | [015](specs/015-profiles.md) | プロファイルの切り替え（`--profile`、設定、DB） | 実装済み |
-| [016](specs/016-current-events.md) | `current-events` プロファイル（LINE グループ向けの時事ネタ） | 実装済み（LLM を使った実際の実行の確認は未） |
+| [016](specs/016-current-events.md) | `current-events` プロファイル（LINE グループ向けの時事ネタ） | 実装済み（LLM を使った dry-run で確認済み。VPS への反映は未） |
 
-テスト：439 件、カバレッジ 99%（2026-11-09 時点）。
+テスト：440 件、カバレッジ 99%（2026-11-09 時点）。
 
 ## 改善の候補（未着手）
 

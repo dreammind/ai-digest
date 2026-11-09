@@ -427,3 +427,20 @@ def test_current_events_empty_field_gives_no_summary(conn: sqlite3.Connection) -
 
     assert len(llm.calls) == 2
     assert result.summary is None
+
+
+def test_current_events_prompt_has_length_and_fact_rules() -> None:
+    """AC-016-13"""
+    prompt = (PROJECT_ROOT / "src/aidigest/prompts/summarize_current_events_system.md").read_text()
+    summary_line = next(line for line in prompt.splitlines() if line.startswith("- summary："))
+    why_line = next(line for line in prompt.splitlines() if line.startswith("- why_it_matters："))
+    assert "2 文" in summary_line
+    assert "100 字程度" in summary_line
+    assert "1 文" in why_line
+    assert "50 字程度" in why_line
+    assert "人名・組織名・数字・日付は本文に書かれたとおりに" in prompt
+    assert "本文に無ければ書かない" in prompt
+
+    tool = json.dumps(CURRENT_EVENTS_SPEC.tool, ensure_ascii=False)
+    assert "何が起きたかを 2 文、合計 100 字程度まで" in tool
+    assert "どう関係するかを 1 文、50 字程度まで" in tool

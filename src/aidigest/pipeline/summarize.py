@@ -125,8 +125,8 @@ CURRENT_EVENTS_TOOL: ToolParam = {
         "type": "object",
         "properties": {
             "title_ja": _string("日本語のタイトル"),
-            "summary": _string("何が起きたかを 2 文で"),
-            "why_it_matters": _string("読者の暮らしや仕事にどう関係するかを 1 文で"),
+            "summary": _string("何が起きたかを 2 文、合計 100 字程度まで"),
+            "why_it_matters": _string("読者の暮らしや仕事にどう関係するかを 1 文、50 字程度まで"),
         },
         "required": ["title_ja", "summary", "why_it_matters"],
         "additionalProperties": False,
