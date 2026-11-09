@@ -1,6 +1,7 @@
-"""CLI と処理全体の統合（specs/013-cli.md）。
+"""CLI と処理全体の統合（specs/013-cli.md、specs/015-profiles.md）。
 
-`python -m aidigest.cli run [--dry-run] [--no-llm]` で、取得からメール送信までを 1 回流す。
+`python -m aidigest.cli run [--profile P] [--dry-run] [--no-llm]` で、取得からメール送信までを
+1 回流す。
 失敗しても LLM の費用の記録（`llm_calls`）は残し、失敗をログと通知メールで知らせる。
 """
 
@@ -19,9 +20,11 @@ from pathlib import Path
 from typing import Protocol
 
 from aidigest.config import (
+    PROFILES,
     ConfigError,
     LoadedSources,
     PricingConfig,
+    Profile,
     Settings,
     TopicsConfig,
     load_pricing,
@@ -61,6 +64,7 @@ EXIT_LOCKED = 2
 class RunOptions:
     dry_run: bool
     no_llm: bool
+    profile: Profile = "dev"
 
 
 class MailSender(Protocol):
@@ -144,12 +148,17 @@ class _Run:
 
     def execute(self) -> int:
         s = self.settings
+        profile = self.options.profile
         logger.info(
-            "実行を開始します（dry_run=%s, no_llm=%s）", self.options.dry_run, self.options.no_llm
+            "実行を開始します（profile=%s, dry_run=%s, no_llm=%s）",
+            profile,
+            self.options.dry_run,
+            self.options.no_llm,
         )
+        sources_path, topics_path = _config_paths(s, profile)
         try:
-            loaded = load_sources(s.sources_path)
-            topics = load_topics(s.topics_path)
+            loaded = load_sources(sources_path)
+            topics = load_topics(topics_path)
             pricing = None if self.options.no_llm else load_pricing(s.pricing_path)
             conn = open_db(s.db_path)
         except (ConfigError, DbError) as e:
@@ -171,7 +180,8 @@ class _Run:
     ) -> int:
         s = self.settings
         row = conn.execute(
-            "INSERT INTO runs (started_at) VALUES (?) RETURNING id", (_iso(self.now),)
+            "INSERT INTO runs (started_at, profile) VALUES (?, ?) RETURNING id",
+            (_iso(self.now), self.options.profile),
         ).fetchone()
         run_id = int(row[0])
         conn.commit()  # 途中で落ちても実行の記録を残し、llm_calls の外部キーを満たすため
@@ -189,7 +199,7 @@ class _Run:
             sources = {source.id: source for source in loaded.sources}
 
             stage = "既読判定"
-            new = register_items(conn, result.items, sources, self.now)
+            new = register_items(conn, result.items, sources, self.now, self.options.profile)
             stage = "事前の絞り込み"
             passed = prefilter(
                 conn, new, sources, loaded.exclude_keywords, self.now, s.time_window_hours
@@ -301,7 +311,7 @@ class _Run:
         """失敗通知メールを送る（--dry-run のときは送らない）。送れなければログだけ。"""
         if self.options.dry_run:
             return
-        subject = f"[AI Digest] 実行に失敗しました {self.day.isoformat()}"
+        subject = f"[AI Digest] 実行に失敗しました（{self.options.profile}） {self.day.isoformat()}"
         text = (
             f"段階: {stage}\nエラー: {_describe(error)}\nログ: {self.settings.log_dir / LOG_FILE}\n"
         )
@@ -309,6 +319,13 @@ class _Run:
             self.mailer.send(subject, f"<pre>{html.escape(text)}</pre>", text)
         except (MailError, MailConfigError) as e:
             logger.error("失敗通知メールも送れませんでした: %s", e)
+
+
+def _config_paths(settings: Settings, profile: Profile) -> tuple[Path, Path]:
+    """プロファイルのソースとテーマのファイルのパス（specs/015）。"""
+    if profile == "current-events":
+        return settings.current_events_sources_path, settings.current_events_topics_path
+    return settings.sources_path, settings.topics_path
 
 
 def _rollback_keeping_records(conn: sqlite3.Connection, run_id: int) -> None:
@@ -357,11 +374,21 @@ def _parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run", help="取得からメール送信までを 1 回実行する")
     run.add_argument("--dry-run", action="store_true", help="メールを送らず、記事の状態を残さない")
     run.add_argument("--no-llm", action="store_true", help="LLM を使わない")
+    run.add_argument(
+        "--profile", choices=PROFILES, default="dev", help="配信の種類（省略時は dev）"
+    )
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def parse_run_options(argv: Sequence[str] | None = None) -> RunOptions:
+    """コマンドラインを解釈する。不正な引数なら使い方を表示して SystemExit(2)。"""
     args = _parser().parse_args(argv)
+    profile: Profile = "current-events" if args.profile == "current-events" else "dev"
+    return RunOptions(dry_run=bool(args.dry_run), no_llm=bool(args.no_llm), profile=profile)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    options = parse_run_options(argv)
     try:
         settings = load_settings(Path(".env"))
     except ConfigError as e:
@@ -377,7 +404,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return run_digest(
             settings,
-            RunOptions(dry_run=bool(args.dry_run), no_llm=bool(args.no_llm)),
+            options,
             http=http,
             llm_factory=llm_factory,
             mailer=Mailer(settings),

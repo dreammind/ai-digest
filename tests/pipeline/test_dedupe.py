@@ -202,3 +202,31 @@ def test_registration_is_not_committed(conn: sqlite3.Connection) -> None:
     conn.rollback()
 
     assert all_articles(conn) == before
+
+
+# ------------------------------------------------------------ プロファイル（specs/015）
+
+
+def test_url_registered_in_dev_is_new_in_current_events(conn: sqlite3.Connection) -> None:
+    """AC-015-6"""
+    register_items(conn, [item()], SOURCES, DAY1)
+    dev_before = all_articles(conn)
+
+    result = register_items(conn, [item()], SOURCES, DAY2, profile="current-events")
+
+    assert len(result) == 1
+    rows = all_articles(conn)
+    assert [r["profile"] for r in rows] == ["dev", "current-events"]
+    assert rows[0] == dev_before[0]
+    assert result[0].id == rows[1]["id"]
+
+
+def test_same_profile_url_is_not_returned_again(conn: sqlite3.Connection) -> None:
+    """AC-015-7"""
+    register_items(conn, [item()], SOURCES, DAY1, profile="current-events")
+    before = all_articles(conn)
+
+    result = register_items(conn, [item()], SOURCES, DAY2, profile="current-events")
+
+    assert result == []
+    assert all_articles(conn) == before

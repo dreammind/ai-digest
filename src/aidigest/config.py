@@ -44,6 +44,10 @@ def _settings_config(env_file: Path | None) -> SettingsConfigDict:
     )
 
 
+Profile = Literal["dev", "current-events"]  # 配信の種類（SPEC.md §1、specs/015）
+PROFILES: tuple[Profile, ...] = ("dev", "current-events")
+
+
 class Settings(BaseSettings):
     """`.env` / 環境変数から読み込む設定。秘密情報は `SecretStr` で持つ。"""
 
@@ -87,6 +91,8 @@ class Settings(BaseSettings):
     log_dir: Path = Path("logs")
     log_backup_days: Annotated[int, Field(ge=1)] = 30
     lock_path: Path = Path("data/aidigest.lock")
+    current_events_sources_path: Path = Path("sources-current-events.yaml")
+    current_events_topics_path: Path = Path("topics-current-events.yaml")
 
 
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:

@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from aidigest.config import Source
+from aidigest.config import Profile, Source
 from aidigest.models import FetchedItem
 from aidigest.pipeline.normalize import content_hash, normalize_url
 
@@ -31,8 +31,12 @@ def register_items(
     items: Sequence[FetchedItem],
     sources: Mapping[str, Source],
     now: datetime,
+    profile: Profile = "dev",
 ) -> list[NewArticle]:
-    """未読の記事を `articles` に記録し、処理を続ける記事を入力の順に返す。"""
+    """未読の記事を `articles` に記録し、処理を続ける記事を入力の順に返す。
+
+    既読かどうかは、同じプロファイルの記事の中で URL を照合して決める（specs/015）。
+    """
     fetched_at = _iso(now)
     seen_urls: set[str] = set()
     result: list[NewArticle] = []
@@ -59,9 +63,11 @@ def register_items(
         seen_urls.add(url)
 
         new_hash = content_hash(item.title, item.content)
-        row = conn.execute("SELECT id, content_hash FROM articles WHERE url = ?", (url,)).fetchone()
+        row = conn.execute(
+            "SELECT id, content_hash FROM articles WHERE profile = ? AND url = ?", (profile, url)
+        ).fetchone()
         if row is None:
-            article_id = _insert(conn, url, source, item, new_hash, fetched_at)
+            article_id = _insert(conn, profile, url, source, item, new_hash, fetched_at)
         elif source.recheck_changed and row[1] != new_hash:
             article_id = int(row[0])
             _recollect(conn, article_id, item, new_hash, fetched_at)
@@ -74,6 +80,7 @@ def register_items(
 
 def _insert(
     conn: sqlite3.Connection,
+    profile: Profile,
     url: str,
     source: Source,
     item: FetchedItem,
@@ -82,9 +89,11 @@ def _insert(
 ) -> int:
     row = conn.execute(
         "INSERT INTO articles"
-        " (url, source_id, category, title, published_at, fetched_at, content_hash, status)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, 'new') RETURNING id",
+        " (profile, url, source_id, category, title, published_at, fetched_at, content_hash,"
+        "  status)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new') RETURNING id",
         (
+            profile,
             url,
             source.id,
             source.category,

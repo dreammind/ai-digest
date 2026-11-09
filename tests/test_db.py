@@ -19,6 +19,7 @@ SPEC_COLUMNS = {
         "selected_count",
         "sent_count",
         "error",
+        "profile",  # specs/015
     },
     "articles": {
         "id",
@@ -37,6 +38,7 @@ SPEC_COLUMNS = {
         "score_model",
         "summary_model",
         "status",
+        "profile",  # specs/015
     },
     "digests": {
         "id",
@@ -319,3 +321,98 @@ def test_db_path_can_be_overridden(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("DB_PATH", "/var/lib/aidigest/app.db")
 
     assert load_settings(tmp_path / "no-such.env").db_path == Path("/var/lib/aidigest/app.db")
+
+
+# ------------------------------------------------------------ プロファイル（specs/015）
+
+
+def v1_migrations() -> list[Migration]:
+    return [m for m in load_migrations() if m.version == 1]
+
+
+def insert_v1_rows(path: Path) -> None:
+    """バージョン 1 の DB に、実行 1 件と記事 2 件を入れる。"""
+    conn = open_db(path, migrations=v1_migrations())
+    run_id = insert_run(conn)
+    conn.execute(
+        "INSERT INTO articles"
+        " (url, source_id, category, title, published_at, fetched_at, content_hash,"
+        "  local_score, llm_score, final_score, matched_topics, summary_json,"
+        "  score_model, summary_model, status)"
+        " VALUES ('https://example.com/a', 'src', 'japanese', 'A', ?, ?, 'h1',"
+        "  1.5, 0.8, 1.2, '[\"llm\"]', '{}', 'm1', 'm2', 'sent')",
+        (NOW, NOW),
+    )
+    insert_article(conn, "https://example.com/b")
+    conn.execute(
+        "INSERT INTO digests (run_id, created_at, status, article_count) VALUES (?, ?, 'sent', 1)",
+        (run_id, NOW),
+    )
+    conn.commit()
+    conn.close()
+
+
+def test_profiles_migration_keeps_existing_rows_as_dev(db_path: Path) -> None:
+    """AC-015-4"""
+    insert_v1_rows(db_path)
+    with sqlite3.connect(db_path) as raw:
+        raw.row_factory = sqlite3.Row
+        before = [dict(r) for r in raw.execute("SELECT * FROM articles ORDER BY id")]
+
+    conn = open_db(db_path)
+
+    assert current_version(conn) == 2
+    after = [dict(r) for r in conn.execute("SELECT * FROM articles ORDER BY id")]
+    assert [a.pop("profile") for a in after] == ["dev", "dev"]
+    assert after == before
+    assert [r["profile"] for r in conn.execute("SELECT profile FROM runs")] == ["dev"]
+    assert len(conn.execute("SELECT * FROM digests").fetchall()) == 1
+    conn.close()
+
+
+def test_profiles_migration_failure_keeps_version_1(db_path: Path) -> None:
+    """AC-015-5: 作り直しに使う名前のテーブルが既にあると、0002 は途中で失敗する"""
+    insert_v1_rows(db_path)
+    with sqlite3.connect(db_path) as raw:
+        raw.execute("CREATE TABLE articles_new (x INTEGER)")
+
+    with pytest.raises(DbError):
+        open_db(db_path)
+
+    assert versions(db_path) == [1]
+    with sqlite3.connect(db_path) as raw:
+        columns = {str(r[1]) for r in raw.execute("PRAGMA table_info(articles)")}
+        assert "profile" not in columns
+        assert raw.execute("SELECT COUNT(*) FROM articles").fetchone()[0] == 2
+
+
+def test_same_url_is_allowed_in_another_profile(conn: sqlite3.Connection) -> None:
+    """AC-015-6 の前提: 一意なのは profile と url の組"""
+    insert_article(conn, "https://example.com/a")
+    conn.execute(
+        "INSERT INTO articles (url, source_id, title, fetched_at, content_hash, profile)"
+        " VALUES ('https://example.com/a', 'src', 'title', ?, 'hash', 'current-events')",
+        (NOW,),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO articles (url, source_id, title, fetched_at, content_hash, profile)"
+            " VALUES ('https://example.com/a', 'src', 'title', ?, 'hash', 'current-events')",
+            (NOW,),
+        )
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "INSERT INTO runs (started_at, profile) VALUES ('t', 'foo')",
+        "INSERT INTO articles (url, source_id, title, fetched_at, content_hash, profile)"
+        " VALUES ('https://example.com/x', 's', 't', 't', 'h', 'foo')",
+    ],
+    ids=["runs", "articles"],
+)
+def test_unknown_profile_is_rejected(conn: sqlite3.Connection, sql: str) -> None:
+    """AC-015-4 の補足: profile は dev と current-events だけ"""
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(sql)

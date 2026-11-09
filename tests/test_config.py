@@ -61,6 +61,8 @@ ENV_NAMES = [
     "LOG_DIR",
     "LOG_BACKUP_DAYS",
     "LOCK_PATH",
+    "CURRENT_EVENTS_SOURCES_PATH",
+    "CURRENT_EVENTS_TOPICS_PATH",
 ]
 
 BASE = "category: official\n    priority: 1\n    max_items: 10"
@@ -831,6 +833,14 @@ def test_invalid_fetcher_settings_raise_config_error(tmp_path: Path, line: str) 
 def test_topics_path_defaults_to_topics_yaml(tmp_path: Path) -> None:
     """AC-006-3"""
     assert load_settings(tmp_path / "no-such.env").topics_path == Path("topics.yaml")
+
+
+def test_current_events_paths_have_defaults(tmp_path: Path) -> None:
+    """AC-015-2"""
+    settings = load_settings(tmp_path / "no-such.env")
+
+    assert settings.current_events_sources_path == Path("sources-current-events.yaml")
+    assert settings.current_events_topics_path == Path("topics-current-events.yaml")
 
 
 def test_llm_settings_have_defaults(tmp_path: Path) -> None:

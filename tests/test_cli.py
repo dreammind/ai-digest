@@ -18,8 +18,8 @@ import httpx
 import httpx2
 import pytest
 
-from aidigest.cli import RunOptions, main, run_digest, setup_logging
-from aidigest.config import PricingConfig, Settings, load_settings
+from aidigest.cli import RunOptions, main, parse_run_options, run_digest, setup_logging
+from aidigest.config import PricingConfig, Profile, Settings, load_settings
 from aidigest.fetchers.http import HttpClient
 from aidigest.llm import LlmCaller, LlmClient
 from aidigest.mailer import MailError
@@ -179,7 +179,14 @@ class Env:
         )
         return load_settings(env)
 
-    def run(self, *, dry_run: bool = False, no_llm: bool = False, now: datetime = NOW) -> int:
+    def run(
+        self,
+        *,
+        dry_run: bool = False,
+        no_llm: bool = False,
+        now: datetime = NOW,
+        profile: Profile = "dev",
+    ) -> int:
         settings = self.settings()
         transport = httpx2.MockTransport(self.anthropic)
 
@@ -196,7 +203,7 @@ class Env:
         http: HttpClient = make_client(self.sites, retries=0)
         return run_digest(
             settings,
-            RunOptions(dry_run=dry_run, no_llm=no_llm),
+            RunOptions(dry_run=dry_run, no_llm=no_llm, profile=profile),
             http=http,
             llm_factory=llm_factory,
             mailer=self.mailer,
@@ -359,7 +366,7 @@ def test_empty_day(env: Env) -> None:
 
 
 def test_unexpected_failure(env: Env) -> None:
-    """AC-013-10: 要約の後、HTML の生成でテンプレートが見つからず失敗する"""
+    """AC-013-10 / AC-015-11: 要約の後、HTML の生成でテンプレートが見つからず失敗する"""
     env.values["TEMPLATES_DIR"] = env.tmp / "no-templates"
 
     code = env.run()
@@ -371,7 +378,7 @@ def test_unexpected_failure(env: Env) -> None:
     assert len(env.rows("SELECT * FROM llm_calls")) == 4
     assert env.rows("SELECT * FROM articles") == []
     assert len(env.subjects()) == 1
-    assert env.subjects()[0].startswith("[AI Digest] 実行に失敗しました 2026-10-17")
+    assert env.subjects()[0].startswith("[AI Digest] 実行に失敗しました（dev） 2026-10-17")
     assert API_KEY not in env.mailer.sent[0][2]
 
 
@@ -468,3 +475,137 @@ def test_main_with_invalid_env_file(tmp_path: Path) -> None:
     (tmp_path / ".env").write_text("SMTP_PORT=not-a-number\n", encoding="utf-8")
 
     assert main(["run", "--dry-run"]) == 1
+
+
+# ------------------------------------------------------------ プロファイル（specs/015）
+
+CE_SOURCES_YAML = """\
+sources:
+  - id: feed-c
+    type: rss
+    url: https://c.example.com/feed.xml
+    category: japanese
+    priority: 1
+    max_items: 10
+"""
+CE_TOPICS_YAML = """\
+scoring:
+  priority_bonus: {1: 2.0, 2: 1.0, 3: 0.0}
+  high_points: 2.0
+  medium_points: 1.0
+  negative_points: 3.0
+  highlight_points: 1.0
+  content_factor: 0.25
+  max_hits: 3
+  min_score: 1.0
+  similarity_threshold: 0.45
+  ngram: 2
+topics:
+  - id: news
+    weight: 2.0
+    high: [Gemini, ChatGPT]
+"""
+
+
+@pytest.fixture
+def ce_env(env: Env) -> Env:
+    """current-events のソースとテーマのファイルを用意した Env。"""
+    (env.tmp / "ce-sources.yaml").write_text(CE_SOURCES_YAML, encoding="utf-8")
+    (env.tmp / "ce-topics.yaml").write_text(CE_TOPICS_YAML, encoding="utf-8")
+    env.values["CURRENT_EVENTS_SOURCES_PATH"] = env.tmp / "ce-sources.yaml"
+    env.values["CURRENT_EVENTS_TOPICS_PATH"] = env.tmp / "ce-topics.yaml"
+    env.sites.feeds["c.example.com"] = (200, ["Gemini の新機能", "ChatGPT の使い方"])
+    return env
+
+
+def requested_hosts(env: Env) -> set[str]:
+    return {r.url.host for r in env.sites.requests if r.url.path == "/feed.xml"}
+
+
+@pytest.mark.parametrize(
+    ("argv", "profile"),
+    [(["run"], "dev"), (["run", "--profile", "current-events"], "current-events")],
+)
+def test_profile_option(argv: list[str], profile: str) -> None:
+    """AC-015-1"""
+    assert parse_run_options(argv).profile == profile
+
+
+def test_unknown_profile_is_usage_error() -> None:
+    """AC-015-1"""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["run", "--profile", "foo"])
+
+    assert exc_info.value.code == 2
+
+
+def test_each_profile_reads_its_own_files(ce_env: Env) -> None:
+    """AC-015-3"""
+    assert ce_env.run() == 0
+    assert requested_hosts(ce_env) == {"a.example.com", "b.example.com"}
+    ce_env.sites.requests.clear()
+
+    assert ce_env.run(profile="current-events") == 0
+    assert requested_hosts(ce_env) == {"c.example.com"}
+    profiles = [r["profile"] for r in ce_env.rows("SELECT profile FROM articles")]
+    assert sorted(profiles) == ["current-events"] * 2 + ["dev"] * 3
+
+
+def test_missing_current_events_file_fails(ce_env: Env) -> None:
+    """AC-015-3"""
+    ce_env.values["CURRENT_EVENTS_SOURCES_PATH"] = ce_env.tmp / "no-such.yaml"
+
+    code = ce_env.run(profile="current-events")
+
+    assert code == 1
+    assert ce_env.subjects()[0].startswith("[AI Digest] 実行に失敗しました（current-events）")
+    assert ce_env.sites.requests == []
+
+
+def test_budget_and_cost_are_shared_between_profiles(ce_env: Env) -> None:
+    """AC-015-8: dev で使った費用で日次の上限に届き、current-events では LLM を呼ばない"""
+    assert ce_env.run() == 0
+    dev_cost = sum(r["cost_usd"] for r in ce_env.rows("SELECT cost_usd FROM llm_calls"))
+    ce_env.values["BUDGET_DAILY_USD"] = dev_cost
+    calls_before = len(ce_env.anthropic.tool_names)
+
+    assert ce_env.run(profile="current-events") == 0
+
+    assert len(ce_env.anthropic.tool_names) == calls_before
+    _, _, text = ce_env.mailer.sent[-1]
+    assert "予算の上限" in text
+    assert f"本日 {dev_cost * 160:.2f} 円（${dev_cost:.4f}）" in text
+
+
+def test_run_records_profile_and_logs_it(ce_env: Env, caplog: pytest.LogCaptureFixture) -> None:
+    """AC-015-9"""
+    with caplog.at_level(logging.INFO):
+        assert ce_env.run(profile="current-events") == 0
+
+    (run,) = ce_env.rows("SELECT profile FROM runs")
+    assert run["profile"] == "current-events"
+    starts = [r.getMessage() for r in caplog.records if "実行を開始します" in r.getMessage()]
+    assert len(starts) == 1
+    assert "current-events" in starts[0]
+
+
+def test_failure_subject_has_profile(ce_env: Env) -> None:
+    """AC-015-9"""
+    ce_env.values["TEMPLATES_DIR"] = ce_env.tmp / "no-templates"
+
+    assert ce_env.run(profile="current-events") == 1
+
+    assert ce_env.subjects() == ["[AI Digest] 実行に失敗しました（current-events） 2026-10-17"]
+
+
+def test_lock_is_shared_between_profiles(ce_env: Env) -> None:
+    """AC-015-10"""
+    lock_path = ce_env.tmp / "data" / "test.lock"
+    lock_path.parent.mkdir(parents=True)
+    with lock_path.open("w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+        code = ce_env.run(profile="current-events")
+
+    assert code == 2
+    assert ce_env.sites.requests == []
